@@ -1,0 +1,373 @@
+name: speroflow-knowledge
+
+services:
+  knowledge-portal:
+    build:
+      context: ./portal
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    networks:
+      - knowledge_edge
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+
+  knowledge-db-migrate:
+    build:
+      context: .
+      dockerfile: backend/src/SperoFlow.Knowledge.Api/Dockerfile
+    restart: "no"
+    command: ["dotnet", "SperoFlow.Knowledge.Api.dll", "--migrate"]
+    depends_on:
+      knowledge-postgres:
+        condition: service_healthy
+      knowledge-redis:
+        condition: service_healthy
+      knowledge-object-storage-init:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      KnowledgeStorage__PublicEndpoint: https://${KNOWLEDGE_DOMAIN:-knowledge.example.com}
+      KnowledgeOidc__Authority: https://${APP_DOMAIN:-app.example.com}
+    secrets:
+      - knowledge_postgres_password
+      - knowledge_portal_data_protection_certificate
+      - knowledge_portal_data_protection_certificate_password
+    networks:
+      - knowledge_private
+    volumes:
+      - knowledge_portal_keys:/var/lib/speroflow/keys
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  knowledge-api:
+    build:
+      context: .
+      dockerfile: backend/src/SperoFlow.Knowledge.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      KnowledgeStorage__PublicEndpoint: https://${KNOWLEDGE_DOMAIN:-knowledge.example.com}
+      KnowledgeOidc__Authority: https://${APP_DOMAIN:-app.example.com}
+      KnowledgeOidc__RequireHttpsMetadata: "true"
+    depends_on:
+      knowledge-db-migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8080"
+    secrets:
+      - knowledge_postgres_password
+      - knowledge_redis_password
+      - knowledge_minio_access_key
+      - knowledge_minio_secret_key
+      - service_jwt_public_key
+      - knowledge_service_jwt_public_key
+      - knowledge_grant_private_key
+      - knowledge_portal_data_protection_certificate
+      - knowledge_portal_data_protection_certificate_password
+    networks:
+      - knowledge_edge
+      - knowledge_private
+      - knowledge_grant_bridge
+    volumes:
+      - knowledge_portal_keys:/var/lib/speroflow/keys
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  knowledge-outbox-worker:
+    build:
+      context: .
+      dockerfile: backend/src/SperoFlow.Knowledge.Worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      knowledge-db-migrate:
+        condition: service_completed_successfully
+      knowledge-redis:
+        condition: service_healthy
+    secrets:
+      - knowledge_postgres_password
+      - knowledge_redis_password
+      - knowledge_service_jwt_private_key
+    networks:
+      - knowledge_private
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  knowledge-worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      KNOWLEDGE_API_URL: http://knowledge-api:8080
+      KNOWLEDGE_NEO4J_URI: bolt://knowledge-neo4j:7687
+      KNOWLEDGE_NEO4J_USER: knowledge_writer
+      KNOWLEDGE_NEO4J_DATABASE: neo4j
+      KNOWLEDGE_OBJECT_STORAGE_ENDPOINT_URL: http://knowledge-object-storage:9000
+      KNOWLEDGE_OBJECT_STORAGE_BUCKET: speroflow-knowledge
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      KNOWLEDGE_EXTRACTION_MODEL: ${KNOWLEDGE_EXTRACTION_MODEL:-amazon.nova-lite-v1:0}
+    depends_on:
+      knowledge-api:
+        condition: service_healthy
+      knowledge-redis:
+        condition: service_healthy
+      knowledge-object-storage-init:
+        condition: service_completed_successfully
+      knowledge-neo4j-init:
+        condition: service_completed_successfully
+    secrets:
+      - knowledge_redis_password
+      - knowledge_minio_access_key
+      - knowledge_minio_secret_key
+      - knowledge_neo4j_writer_password
+    networks:
+      - knowledge_private
+    volumes:
+      - knowledge_model_cache:/home/knowledge/.cache
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  knowledge-postgres:
+    image: postgres:17.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: speroflow_knowledge
+      POSTGRES_USER: speroflow_knowledge
+      POSTGRES_PASSWORD_FILE: /run/secrets/knowledge_postgres_password
+    secrets:
+      - knowledge_postgres_password
+    volumes:
+      - knowledge_postgres_data:/var/lib/postgresql/data
+    networks:
+      - knowledge_private
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U speroflow_knowledge -d speroflow_knowledge"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+
+  knowledge-redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    command: ["/bin/sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$(cat /run/secrets/knowledge_redis_password)\""]
+    secrets:
+      - knowledge_redis_password
+    volumes:
+      - knowledge_redis_data:/data
+    networks:
+      - knowledge_private
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$(cat /run/secrets/knowledge_redis_password)\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+
+  knowledge-object-storage:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["export MINIO_ROOT_USER=\"$$(cat /run/secrets/knowledge_minio_access_key)\"; export MINIO_ROOT_PASSWORD=\"$$(cat /run/secrets/knowledge_minio_secret_key)\"; exec minio server /data"]
+    secrets:
+      - knowledge_minio_access_key
+      - knowledge_minio_secret_key
+    volumes:
+      - knowledge_minio_data:/data
+    networks:
+      - knowledge_storage_bridge
+      - knowledge_private
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+
+  knowledge-object-storage-init:
+    image: minio/mc:RELEASE.2025-05-21T01-59-54Z
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        until mc alias set knowledge http://knowledge-object-storage:9000 "$$(cat /run/secrets/knowledge_minio_access_key)" "$$(cat /run/secrets/knowledge_minio_secret_key)"; do sleep 2; done
+        mc mb --ignore-existing knowledge/speroflow-knowledge
+        mc anonymous set none knowledge/speroflow-knowledge
+    depends_on:
+      knowledge-object-storage:
+        condition: service_healthy
+    environment:
+      HOME: /tmp
+    secrets:
+      - knowledge_minio_access_key
+      - knowledge_minio_secret_key
+    networks:
+      - knowledge_private
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  knowledge-neo4j:
+    image: neo4j:5.26-enterprise
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["export NEO4J_AUTH=\"neo4j/$$(cat /run/secrets/knowledge_neo4j_password)\"; exec /startup/docker-entrypoint.sh neo4j"]
+    environment:
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1024m
+      NEO4J_server_memory_pagecache_size: 512m
+    secrets:
+      - knowledge_neo4j_password
+    volumes:
+      - knowledge_neo4j_data:/data
+      - knowledge_neo4j_logs:/logs
+    networks:
+      - knowledge_private
+      - knowledge_read_bridge
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$$(cat /run/secrets/knowledge_neo4j_password)\" 'RETURN 1' >/dev/null"]
+      interval: 20s
+      timeout: 10s
+      start_period: 45s
+      retries: 10
+
+  knowledge-neo4j-init:
+    image: neo4j:5.26-enterprise
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        admin_password="$$(cat /run/secrets/knowledge_neo4j_password)"
+        reader_password="$$(cat /run/secrets/knowledge_neo4j_reader_password)"
+        writer_password="$$(cat /run/secrets/knowledge_neo4j_writer_password)"
+        until cypher-shell -a bolt://knowledge-neo4j:7687 -u neo4j -p "$$admin_password" "RETURN 1" >/dev/null 2>&1; do sleep 2; done
+        cypher-shell -a bolt://knowledge-neo4j:7687 -u neo4j -p "$$admin_password" "CREATE USER knowledge_reader IF NOT EXISTS SET PASSWORD '$$reader_password' CHANGE NOT REQUIRED"
+        cypher-shell -a bolt://knowledge-neo4j:7687 -u neo4j -p "$$admin_password" "CREATE USER knowledge_writer IF NOT EXISTS SET PASSWORD '$$writer_password' CHANGE NOT REQUIRED"
+        cypher-shell -a bolt://knowledge-neo4j:7687 -u neo4j -p "$$admin_password" "GRANT ROLE reader TO knowledge_reader"
+        cypher-shell -a bolt://knowledge-neo4j:7687 -u neo4j -p "$$admin_password" "GRANT ROLE publisher TO knowledge_writer"
+        cypher-shell -a bolt://knowledge-neo4j:7687 -u neo4j -p "$$admin_password" "GRANT ROLE architect TO knowledge_writer"
+    depends_on:
+      knowledge-neo4j:
+        condition: service_healthy
+    environment:
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      HOME: /tmp
+    secrets:
+      - knowledge_neo4j_password
+      - knowledge_neo4j_reader_password
+      - knowledge_neo4j_writer_password
+    networks:
+      - knowledge_private
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  knowledge_edge:
+    name: speroflow_knowledge_edge
+    external: true
+  knowledge_grant_bridge:
+    name: speroflow_knowledge_grant_bridge
+    external: true
+  knowledge_read_bridge:
+    name: speroflow_knowledge_read_bridge
+    external: true
+  knowledge_storage_bridge:
+    name: speroflow_knowledge_storage_bridge
+    external: true
+  knowledge_private:
+    name: speroflow_knowledge_private
+    internal: true
+
+volumes:
+  knowledge_portal_keys:
+  knowledge_postgres_data:
+  knowledge_redis_data:
+  knowledge_minio_data:
+  knowledge_neo4j_data:
+  knowledge_neo4j_logs:
+  knowledge_model_cache:
+
+secrets:
+  knowledge_postgres_password:
+    file: ../infrastructure/secrets/knowledge_postgres_password
+  knowledge_redis_password:
+    file: ../infrastructure/secrets/knowledge_redis_password
+  knowledge_neo4j_password:
+    file: ../infrastructure/secrets/knowledge_neo4j_password
+  knowledge_neo4j_reader_password:
+    file: ../infrastructure/secrets/knowledge_neo4j_reader_password
+  knowledge_neo4j_writer_password:
+    file: ../infrastructure/secrets/knowledge_neo4j_writer_password
+  knowledge_minio_access_key:
+    file: ../infrastructure/secrets/knowledge_minio_access_key
+  knowledge_minio_secret_key:
+    file: ../infrastructure/secrets/knowledge_minio_secret_key
+  service_jwt_public_key:
+    file: ../infrastructure/secrets/service_jwt_public_key
+  knowledge_service_jwt_private_key:
+    file: ../infrastructure/secrets/knowledge_service_jwt_private_key
+  knowledge_service_jwt_public_key:
+    file: ../infrastructure/secrets/knowledge_service_jwt_public_key
+  knowledge_grant_private_key:
+    file: ../infrastructure/secrets/knowledge_grant_private_key
+  knowledge_grant_public_key:
+    file: ../infrastructure/secrets/knowledge_grant_public_key
+  knowledge_portal_data_protection_certificate:
+    file: ../infrastructure/secrets/knowledge_portal_data_protection_certificate
+  knowledge_portal_data_protection_certificate_password:
+    file: ../infrastructure/secrets/knowledge_portal_data_protection_certificate_password

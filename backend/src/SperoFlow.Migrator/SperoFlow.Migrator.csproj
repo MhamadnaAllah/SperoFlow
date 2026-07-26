@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <ProjectReference Include="..\SperoFlow.Infrastructure\SperoFlow.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

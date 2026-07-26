@@ -1,0 +1,106 @@
+name: speroflow
+
+# Production Docker Compose Override for Single-EC2 AWS Deployment
+# Enforces resource limits (RAM/CPU), routes LLM to AWS Bedrock, and disables local GPU containers.
+
+services:
+  reverse-proxy:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  web:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1500M
+
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Serilog__MinimumLevel__Default: Information
+      Serilog__WriteTo__0__Name: Console
+      Serilog__WriteTo__0__Args__formatter: Serilog.Formatting.Json.JsonFormatter, Serilog
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2000M
+
+  api-worker:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1500M
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2000M
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  neo4j:
+    environment:
+      NEO4J_server_memory_heap_initial__size: 1024m
+      NEO4J_server_memory_heap_max__size: 2048m
+      NEO4J_server_memory_pagecache_size: 1024m
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4000M
+
+  object-storage:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1500M
+
+  ai-api:
+    environment:
+      APP_ENV: production
+      LLM_PROVIDER: bedrock
+      ROUTER_PROVIDER: bedrock
+      LLM_MODEL: ${BEDROCK_MODEL_ID:-google.gemma-4-31b}
+      ROUTER_MODEL_ID: ${BEDROCK_ROUTER_MODEL_ID:-google.gemma-4-31b}
+      DATASET_EXTRACTION_MODEL: google.gemma-4-31b
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2000M
+
+  ai-worker:
+    environment:
+      APP_ENV: production
+      LLM_PROVIDER: bedrock
+      DATASET_EXTRACTION_MODEL: google.gemma-4-31b
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2000M
+
+  # Local GPU container disabled for production
+  llm-runtime:
+    profiles:
+      - disabled

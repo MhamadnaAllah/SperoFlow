@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <ProjectReference Include="..\SperoFlow.Application\SperoFlow.Application.csproj" />
+    <ProjectReference Include="..\SperoFlow.Infrastructure\SperoFlow.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Quartz.Extensions.Hosting" />
+  </ItemGroup>
+</Project>

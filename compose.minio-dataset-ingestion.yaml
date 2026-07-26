@@ -1,0 +1,25 @@
+# Development-only overlay for the private MinIO-compatible dataset pipeline.
+# Keep the base compose file private; this exposes MinIO only to the local host so
+# the browser can use a short-lived presigned PUT URL during a demo.
+services:
+  api:
+    environment:
+      ObjectStorage__PublicEndpoint: ${MINIO_PUBLIC_ENDPOINT:-host.docker.internal:9000}
+      ObjectStorage__PublicUseSsl: "false"
+
+  ai-worker:
+    environment:
+      OBJECT_STORAGE_ENDPOINT_URL: http://object-storage:9000
+      OBJECT_STORAGE_BUCKET: speroflow-documents
+      OBJECT_STORAGE_USE_SSL: "false"
+    secrets:
+      - minio_access_key
+      - minio_secret_key
+
+  object-storage:
+    ports:
+      - "9000:9000"
+    environment:
+      # Override MINIO_CORS_ORIGIN when the web application uses another origin.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGIN:-http://localhost:3000}
+

@@ -1,0 +1,345 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f7f9fb;
+  color: #2d3337;
+  margin: 0;
+}
+
+/* ─── Material Symbols ────────────────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  line-height: 1;
+}
+.ms-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ─── Scrollbars ───────────────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #acb3b733;
+  border-radius: 10px;
+}
+
+/* ─── Utility Classes ─────────────────────────────────────────────────────── */
+.warm-ivory   { background: #fdfbf7; }
+.lilac-insight { background: rgba(243, 232, 255, 0.5); }
+
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.ai-glow { box-shadow: 0 0 20px rgba(99, 102, 241, 0.2); }
+
+.no-line-card {
+  background: rgba(255, 255, 255, 0.4);
+  transition: all 0.2s ease;
+}
+.no-line-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateY(-1px);
+}
+
+/* ─── View transition ─────────────────────────────────────────────────────── */
+.view-enter { animation: viewFadeIn 0.22s ease; }
+
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Sidebar task cards ──────────────────────────────────────────────────── */
+.sidebar-task-card {
+  background: white;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  cursor: grab;
+  user-select: none;
+  border-left: 3px solid transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: #2d3337;
+  transition: all 0.15s;
+}
+.sidebar-task-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+.sidebar-task-card:active { cursor: grabbing; opacity: 0.85; transform: scale(0.97); }
+.sidebar-task-card.dragging { opacity: 0.4; transform: scale(0.96); }
+
+/* ─── Calendar ─────────────────────────────────────────────────────────────── */
+#cal-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  background: white;
+}
+#cal-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  background: white;
+}
+#cal-grid-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+#cal-day-headers {
+  display: grid;
+  grid-template-columns: 56px repeat(7, 1fr);
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+#cal-body {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+#cal-body::-webkit-scrollbar { width: 6px; }
+#cal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+#cal-time-grid {
+  display: grid;
+  grid-template-columns: 56px repeat(7, 1fr);
+}
+.cal-time-label {
+  height: 80px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 4px 8px 0 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+}
+.cal-day-col {
+  position: relative;
+  min-height: 1920px;
+  border-right: 1px solid #f1f5f9;
+  background-image: repeating-linear-gradient(
+    to bottom, #e2e8f0 0px, #e2e8f0 1px, transparent 1px, transparent 80px
+  );
+}
+.cal-day-col:last-child { border-right: none; }
+.cal-day-col.drop-target-active { background-color: rgba(0,83,220,0.04); }
+
+.cal-event {
+  position: absolute;
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  cursor: grab;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255,255,255,0.4);
+  transition: box-shadow 0.15s, opacity 0.15s;
+  min-height: 20px;
+  user-select: none;
+  z-index: 2;
+  right: 2px;
+  left: 2px;
+}
+.cal-event:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); z-index: 5; }
+.cal-event:active { cursor: grabbing; }
+.cal-event.is-dragging { opacity: 0.35; border-style: dashed; }
+
+.cal-event-ghost {
+  position: absolute;
+  background: rgba(0,83,220,0.15);
+  border: 2px dashed #0053dc;
+  border-radius: 8px;
+  z-index: 8;
+  pointer-events: none;
+}
+.cal-event-title { font-size: 11px; font-weight: 700; line-height: 1.2; }
+.cal-event-time  { font-size: 9px; opacity: 0.75; margin-top: 2px; }
+
+.cal-resize-handle {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  background: rgba(0,0,0,0.12);
+  border-radius: 0 0 8px 8px;
+}
+.cal-resize-handle:hover { background: rgba(0,0,0,0.25); }
+
+.cal-day-header-cell {
+  text-align: center;
+  padding: 10px 4px;
+  font-size: 11px;
+  border-right: 1px solid #f1f5f9;
+}
+.cal-day-header-cell:last-child { border-right: none; }
+.cal-day-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.cal-day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 15px;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 2px;
+}
+.cal-day-num.today { background: #0053dc; color: white; }
+
+.cal-time-now {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: #ef4444;
+  z-index: 9;
+  pointer-events: none;
+}
+.cal-time-now::before {
+  content: '';
+  position: absolute;
+  left: -5px; top: -4px;
+  width: 10px; height: 10px;
+  background: #ef4444;
+  border-radius: 50%;
+}
+.cal-hover-slot {
+  position: absolute;
+  left: 2px; right: 2px;
+  background: rgba(0,83,220,0.07);
+  border: 1px dashed #0053dc40;
+  border-radius: 6px;
+  z-index: 1;
+  display: none;
+  pointer-events: none;
+}
+
+/* ─── Calendar Event Colors ───────────────────────────────────────────────── */
+.ev-indigo  { background: #eef2ff; color: #3730a3; border-left: 3px solid #4f46e5; }
+.ev-emerald { background: #ecfdf5; color: #065f46; border-left: 3px solid #059669; }
+.ev-rose    { background: #fff1f2; color: #9f1239; border-left: 3px solid #e11d48; }
+.ev-amber   { background: #fffbeb; color: #78350f; border-left: 3px solid #d97706; }
+.ev-blue    { background: #eff6ff; color: #1e3a8a; border-left: 3px solid #2563eb; }
+.ev-purple  { background: #faf5ff; color: #581c87; border-left: 3px solid #7c3aed; }
+.ev-teal    { background: #f0fdfa; color: #134e4a; border-left: 3px solid #0d9488; }
+
+/* ─── Writing canvas ────────────────────────────────────────────────────── */
+.writing-canvas::placeholder { color: #acb3b7; font-style: italic; }
+textarea:focus, input:focus { outline: none; }
+
+/* ─── Spin animation (Matrix AI button) ─────────────────────────────────── */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ─── Auth page animations ───────────────────────────────────────────────── */
+@keyframes auth-slide-in-right {
+  from { opacity: 0; transform: translateX(36px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes auth-slide-in-left {
+  from { opacity: 0; transform: translateX(-36px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes auth-slide-out-left {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-36px); }
+}
+@keyframes auth-slide-out-right {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(36px); }
+}
+@keyframes auth-shake {
+  0%,100% { transform: translateX(0); }
+  18%     { transform: translateX(-7px); }
+  36%     { transform: translateX(7px); }
+  54%     { transform: translateX(-4px); }
+  72%     { transform: translateX(4px); }
+}
+@keyframes auth-success-scale {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes auth-check-draw {
+  from { stroke-dashoffset: 60; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes pillar-float {
+  0%,100% { transform: translateY(0px); }
+  50%     { transform: translateY(-5px); }
+}
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.auth-in-right  { animation: auth-slide-in-right  0.3s cubic-bezier(0.22,1,0.36,1) both; }
+.auth-in-left   { animation: auth-slide-in-left   0.3s cubic-bezier(0.22,1,0.36,1) both; }
+.auth-out-left  { animation: auth-slide-out-left  0.25s ease both; }
+.auth-out-right { animation: auth-slide-out-right 0.25s ease both; }
+.auth-shake     { animation: auth-shake 0.4s ease; }
+.auth-success   { animation: auth-success-scale 0.35s cubic-bezier(0.22,1,0.36,1) both; }
+@keyframes auth-check-draw {
+  from { stroke-dashoffset: 60; opacity: 0; }
+  to   { stroke-dashoffset: 0;  opacity: 1; }
+}
+
+/* ─── Pathfinder AI — Animations & Utilities ──────────────────────────────── */
+@keyframes pf-fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pf-fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pf-slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pf-slideLeft {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pf-scaleUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in      { animation: pf-fadeIn 0.3s ease; }
+.animate-fade-in-up   { animation: pf-fadeInUp 0.4s ease; }
+.animate-slide-up     { animation: pf-slideUp 0.35s ease; }
+.animate-slide-left   { animation: pf-slideLeft 0.3s ease-out; }
+.animate-scale-up     { animation: pf-scaleUp 0.25s ease-out; }
+
+.glow-blue  { box-shadow: 0 4px 20px rgba(0, 74, 198, 0.15); }
+.glow-green { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15); }
+

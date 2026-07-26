@@ -1,0 +1,7 @@
+-r ../ai-core/requirements-base.txt
+redis>=5.2.0
+boto3>=1.34.0
+botocore>=1.34.0
+pypdf>=5.0.0
+python-docx>=1.1.0
+ijson>=3.3.0

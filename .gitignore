@@ -1,0 +1,57 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!*.env.example
+aura.env
+/secrets/
+/secrets_backup/
+infrastructure/secrets/*
+!infrastructure/secrets/.gitignore
+!infrastructure/secrets/README.md
+
+# Cryptographic Keys & Certificates
+*.pem
+*.key
+*.crt
+*.pfx
+*.cer
+*.p12
+
+# Python
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# .NET
+**/bin/
+**/obj/
+
+# Node.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs, AI Agent Scratch & Temp Files
+.vscode/
+.idea/
+.agents/
+.tools/
+tmp-write-test.txt
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs and local databases
+*.log
+*.sqlite

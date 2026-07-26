@@ -1,0 +1,10 @@
+root = true
+
+[*.cs]
+# Public API documentation is maintained in OpenAPI and the Contracts project.
+# Keep missing XML comments from turning a strict production build into noise.
+dotnet_diagnostic.CS1591.severity = none
+
+[src/SperoFlow.Infrastructure/Migrations/*.cs]
+# EF Core emits these array literals; keep generated migration code out of this allocation rule.
+dotnet_diagnostic.CA1861.severity = none

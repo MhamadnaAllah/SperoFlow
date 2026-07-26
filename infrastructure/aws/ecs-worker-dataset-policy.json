@@ -1,0 +1,63 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadDatasetObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::REPLACE_DATASET_BUCKET/datasets/*"
+    },
+    {
+      "Sid": "DatasetBucketLocation",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::REPLACE_DATASET_BUCKET"
+    },
+    {
+      "Sid": "TextractAsyncDocumentDetection",
+      "Effect": "Allow",
+      "Action": [
+        "textract:StartDocumentTextDetection",
+        "textract:GetDocumentTextDetection"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ConsumeTextractNotifications",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:ChangeMessageVisibility"
+      ],
+      "Resource": "arn:aws:sqs:REPLACE_REGION:REPLACE_ACCOUNT_ID:REPLACE_TEXTRACT_QUEUE"
+    },
+    {
+      "Sid": "BedrockSemanticExtraction",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "REPLACE_BEDROCK_MODEL_ARN"
+    },
+    {
+      "Sid": "DatasetKmsDecrypt",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": "REPLACE_KMS_KEY_ARN",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.REPLACE_REGION.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

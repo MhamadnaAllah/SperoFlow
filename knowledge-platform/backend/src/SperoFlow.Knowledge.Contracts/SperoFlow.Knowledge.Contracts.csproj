@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\SperoFlow.Knowledge.Domain\SperoFlow.Knowledge.Domain.csproj" />
+  </ItemGroup>
+</Project>

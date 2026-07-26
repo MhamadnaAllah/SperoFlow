@@ -1,0 +1,10 @@
+services:
+  api:
+    environment:
+      Accounts__AllowPublicRegistration: "false"
+    secrets:
+      - admin_bootstrap_token
+
+secrets:
+  admin_bootstrap_token:
+    file: ./infrastructure/secrets/admin_bootstrap_token

@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speroflow-ai-core"
+version = "0.1.0"
+description = "Shared GraphRAG, model, schema, and configuration code for SperoFlow AI runtimes."
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

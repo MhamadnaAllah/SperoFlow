@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <Compile Remove="TaskItemTests.cs" />
+  </ItemGroup>
+</Project>

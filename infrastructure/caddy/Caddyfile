@@ -1,0 +1,75 @@
+{
+    email {$CADDY_EMAIL}
+    log {
+        output stdout
+        format json
+    }
+}
+
+{$APP_DOMAIN:app.example.com} {
+    encode zstd gzip
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+
+    @api path /api/* /connect/* /.well-known/* /health/live /health/ready
+    handle @api {
+        reverse_proxy api:8080 {
+            header_up -X-Forwarded-For
+            header_up -X-Forwarded-Host
+            header_up -X-Forwarded-Proto
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle {
+        reverse_proxy web:3000
+    }
+}
+
+{$KNOWLEDGE_DOMAIN:knowledge.example.com} {
+    encode zstd gzip
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+
+    # Container probes reach knowledge-api directly. Do not expose platform health data on the private portal host.
+    @knowledge_health path /health/*
+    respond @knowledge_health "Not found" 404
+
+    @knowledge_api path /api/* /auth/* /signin-oidc /signout-callback-oidc
+    handle @knowledge_api {
+        reverse_proxy knowledge-api:8080 {
+            header_up -X-Forwarded-For
+            header_up -X-Forwarded-Host
+            header_up -X-Forwarded-Proto
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    @knowledge_object_store path /speroflow-knowledge/*
+    handle @knowledge_object_store {
+        reverse_proxy knowledge-object-storage:9000 {
+            # Preserve the public Host header because it is part of the S3 SigV4 presigned request.
+            header_up Host {http.request.host}
+        }
+    }
+
+    handle {
+        reverse_proxy knowledge-portal:3000
+    }
+}

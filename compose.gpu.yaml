@@ -1,0 +1,9 @@
+services:
+  ai-api:
+    environment:
+      LLM_PROVIDER: openai
+      LLM_API_BASE: http://llm-runtime:8000/v1
+      LLM_MODEL: google/gemma-4-27b-it
+    depends_on:
+      llm-runtime:
+        condition: service_started

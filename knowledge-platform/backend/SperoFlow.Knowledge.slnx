@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SperoFlow.Knowledge.Api/SperoFlow.Knowledge.Api.csproj" />
+    <Project Path="src/SperoFlow.Knowledge.Contracts/SperoFlow.Knowledge.Contracts.csproj" />
+    <Project Path="src/SperoFlow.Knowledge.Domain/SperoFlow.Knowledge.Domain.csproj" />
+    <Project Path="src/SperoFlow.Knowledge.Infrastructure/SperoFlow.Knowledge.Infrastructure.csproj" />
+    <Project Path="src/SperoFlow.Knowledge.Worker/SperoFlow.Knowledge.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SperoFlow.Knowledge.Infrastructure.Tests/SperoFlow.Knowledge.Infrastructure.Tests.csproj" />
+  </Folder></Solution>
