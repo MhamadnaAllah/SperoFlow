@@ -1,70 +1,114 @@
-# SperoFlow
+# 🚀 SperoFlow AI Platform
 
-SperoFlow is a personal productivity application with an ASP.NET Core application
-API, PostgreSQL as the authority for user data, and an isolated knowledge
-administration platform.
+> **The Digital Architect's Life Operating System**  
+> An enterprise-grade, human-in-the-loop personal productivity and mental well-being platform combining GTD® workflows, Eisenhower Matrix prioritization, OKRs alignment, Affective Journaling, and isolated GraphRAG knowledge administration.
 
-## Product Objective
+---
 
-The active product roadmap and approval-first AI invariants are tracked in
-[PRODUCT_OBJECTIVE_STATUS.md](PRODUCT_OBJECTIVE_STATUS.md).
-## Runtime Architecture
+## 🌟 Key Architecture & Features
 
-~~~mermaid
-flowchart LR
-    Browser --> Caddy
-    Caddy --> Web["Next.js web / SSR"]
-    Caddy --> Api["ASP.NET Core API"]
-    Api --> AppDb[("PostgreSQL")]
-    Api --> AppRedis[("Redis")]
-    Api --> AiApi["Private AI API"]
-    ApiWorker["ASP.NET worker"] --> AppRedis
-    AiWorker["AI worker"] --> AppRedis
+### 🎨 Redesigned Light-Mode Editorial Landing Page
+- **Material 3 Design System**: Built with Next.js 15, Tailwind CSS 3.4, and custom glassmorphism (`backdrop-blur-xl`), ambient shadow glows, and tonal depth.
+- **GPU Wave Shader**: Modular `HeroShaderCanvas.jsx` WebGL fluid wave canvas background mixing primary blue (`#0053dc`) with surface background.
 
-    Admin --> Caddy
-    Caddy --> Portal["Knowledge Portal"]
-    Caddy --> KnowledgeApi["Knowledge API"]
-    Api -->|"short-lived grant request"| KnowledgeApi
-    KnowledgeApi --> KnowledgeDb[("Knowledge PostgreSQL")]
-    KnowledgeApi --> KnowledgeStore[("Private MinIO")]
-    KnowledgeApi --> KnowledgeRedis[("Knowledge Redis")]
-    KnowledgeWorker["Knowledge worker"] --> KnowledgeStore
-    KnowledgeWorker --> KnowledgeRedis
-    KnowledgeWorker --> KnowledgeGraph[("Knowledge Neo4j")]
-    AiApi -->|"read-only bridge"| KnowledgeGraph
-~~~
+### 🛡️ Human-in-the-Loop (HITL) AI Safety Invariant
+- **Approval-First Execution**: The AI engine acts strictly as a **proposer**, generating `AiActionProposal` records.
+- **Zero Autonomous Mutation**: The ASP.NET Core backend re-validates contracts and business logic before applying state mutations—and **only** after explicit user approval.
 
-Only Caddy publishes ports 80 and 443. The browser calls only same-origin
-main API routes. Administrative upload and publication work happens on the
-separate knowledge subdomain. The main API receives no knowledge database,
-object-store, or graph-writer credential.
+### 🧠 Dual Mode Emotion Classification (RoBERTa + Bedrock)
+- **Local ONNX CPU Inference**: High-speed (~12ms) local emotion tagging via `j-hartmann/emotion-english-distilroberta-base` ONNX Runtime.
+- **Standardized Taxonomy**: Extracts 7 canonical emotion classes (`Joy`, `Sadness`, `Anger`, `Fear`, `Surprise`, `Disgust`, `Neutral`) locally while using AWS Bedrock for warm non-clinical narrative synthesis.
 
-## Repository Layout
+### 📚 Isolated Knowledge Platform (GraphRAG)
+- **Air-Gapped Data Isolation**: Complete separation of knowledge administration from the main web application.
+- **Curated Datasets**: Deterministic SHA-256 source manifests tracking 320 CBT domain documents and 9,978 learning roadmaps over Neo4j and MinIO.
 
-- frontend/: Next.js application UI and SSR only.
-- backend/: .NET 10 main API, worker, and application database migrations.
-- ai-api/ and ai-core/: private retrieval and inference runtime.
-- ai-worker/: ordinary application-document background work.
-- knowledge-platform/: isolated knowledge portal, API, workers, storage,
-  PostgreSQL, Redis, Neo4j, and its Compose stack.
-- knowledge-base/: curated source assets that must enter the knowledge
-  platform through a reviewed release.
-- infrastructure/: Caddy, container files, deployment, and operations material.
+---
 
-## Deployment
+## 🏗️ System Architecture
 
-1. Create the four shared narrow networks once with
-   `./scripts/Initialize-KnowledgePlatformNetworks.ps1`.
-2. Generate protected deployment secrets with scripts/bootstrap-secrets.ps1.
-3. Create an untracked .env from .env.example, set both host names, and give
-   Caddy an email address.
-4. Start the knowledge platform, then the main stack:
+```mermaid
+flowchart TD
+    subgraph Edge Layer
+        Browser["User Browser / Mobile"] ──► Caddy["Caddy Reverse Proxy (TLS)"]
+    end
 
-~~~powershell
+    subgraph App Layer
+        Caddy ──► Web["Next.js 15 Frontend"]
+        Caddy ──► Api[".NET 10 Web API"]
+        Api ──► AppDb[("PostgreSQL")]
+        Api ──► AppRedis[("Redis Outbox")]
+        ApiWorker[".NET Outbox Worker"] ──► AppRedis
+    end
+
+    subgraph AI Core Layer
+        Api ──►|"Signed Service JWT"| AiApi["FastAPI AI Core"]
+        AiWorker["Python AI Worker"] ──► AppRedis
+        AiApi ──► RoBERTa["ONNX DistilRoBERTa (CPU)"]
+        AiApi ──► Bedrock["AWS Bedrock (Gemma 31B / Claude 3.5)"]
+    end
+
+    subgraph Knowledge Platform
+        Admin["Knowledge Admin"] ──► Caddy
+        Caddy ──► Portal["Knowledge Portal"]
+        Caddy ──► KnowledgeApi["Knowledge API"]
+        Api ──►|"Short-lived Grant (90s)"| KnowledgeApi
+        KnowledgeApi ──► KnowledgeDb[("Knowledge PostgreSQL")]
+        KnowledgeApi ──► KnowledgeStore[("Private MinIO S3")]
+        KnowledgeWorker["Knowledge Worker"] ──► KnowledgeGraph[("Neo4j Graph DB")]
+        AiApi ──►|"Read-Only Graph Bridge"| KnowledgeGraph
+    end
+```
+
+---
+
+## 📁 Repository Layout
+
+| Directory | Description |
+|---|---|
+| [`frontend/`](frontend/) | Next.js 15 App Router frontend with React 19, Tailwind CSS 3.4, and Material 3 design tokens. |
+| [`backend/`](backend/) | .NET 10 C# Web API, Background Worker, EF Core migrations, and Data Protection engine. |
+| [`ai-core/`](ai-core/) & [`ai-api/`](ai-api/) | FastAPI AI Core with local ONNX DistilRoBERTa emotion classifier & AWS Bedrock RAG routing. |
+| [`ai-worker/`](ai-worker/) | Asynchronous Redis stream worker for AI background processing. |
+| [`knowledge-platform/`](knowledge-platform/) | Isolated Knowledge Portal (Next.js), API (.NET 10), Worker (.NET 10), PostgreSQL, Redis, MinIO, & Neo4j. |
+| [`knowledge-base/`](knowledge-base/) | Curated CBT resources (320 docs) and roadmaps (9,978 files) with deterministic SHA-256 manifests. |
+| [`infrastructure/`](infrastructure/) | Caddy reverse proxy configurations, Dockerfiles, AWS setup guides, and secrets bootstrap scripts. |
+
+---
+
+## ⚡ Quickstart & Deployment
+
+### 1. Local Development Setup
+
+```bash
+# 1. Create Docker bridge networks
+pwsh ./scripts/Initialize-KnowledgePlatformNetworks.ps1
+
+# 2. Generate deployment secrets & RSA keys
+pwsh ./scripts/bootstrap-secrets-v2.ps1
+
+# 3. Create .env configuration
+cp .env.example .env
+
+# 4. Start Knowledge Platform & Main App
 docker compose -f knowledge-platform/compose.yaml up -d --build
 docker compose up -d --build
-~~~
+```
 
-See [the knowledge-platform guide](knowledge-platform/README.md) and
-[infrastructure/DEPLOYMENT.md](infrastructure/DEPLOYMENT.md) for the exact
-cutover and verification steps.
+### 2. Single AWS EC2 Deployment (Production Mode)
+
+To deploy on a single AWS EC2 instance (`m6i.2xlarge` / `m6i.xlarge`) with Bedrock LLM routing and host OOM resource limits:
+
+```bash
+# Start Knowledge Platform
+docker compose -f knowledge-platform/compose.yaml up -d --build
+
+# Start Main Stack with Production Override
+docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+```
+
+---
+
+## 📄 License & Verification
+
+The SperoFlow AI Platform preserves strict license permissions (`--confirm-license-permission`) for all integrated CBT and Roadmap knowledge datasets. See [`CUTOVER.md`](knowledge-platform/CUTOVER.md) for data integrity verification protocols.
