@@ -1,7 +1,3 @@
 <Project>
   <Import Project="..\..\Directory.Build.props" />
-  <PropertyGroup>
-    <!-- Exclude prior generated startup units; ProgramRuntimeV2 is authoritative. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);Program.cs;ProgramRuntime.cs</DefaultItemExcludes>
-  </PropertyGroup>
 </Project>

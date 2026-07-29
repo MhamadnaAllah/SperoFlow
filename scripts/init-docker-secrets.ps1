@@ -1,13 +1,22 @@
-# Script to initialize Docker secrets and backup credentials
+# Thin wrapper that delegates to bootstrap-secrets.ps1.
+# Prefer: powershell -ExecutionPolicy Bypass -File scripts/bootstrap-secrets.ps1
 Param(
-    [string]$BedrockApiKey = "ABSKTWFudGxlQXBpS2V5LTdvaXExbm80LWF0LTU2NDM3MTE4MDQ5NDpPaWwvNy8rL3VIeUR2OW02ZjJFajZPYllJT2FDL1J6QVZrQ0dYaUJwZFpNNTArSjZjRlVvY25yUmZpVT0="
+    # Never embed live keys here. Use env BEDROCK_API_KEY or pass -BedrockApiKey explicitly.
+    [string]$BedrockApiKey = $(if ($env:BEDROCK_API_KEY) { $env:BEDROCK_API_KEY } else { "" }),
+    [switch]$Rotate,
+    [switch]$WritePlaintextSummary,
+    [switch]$WriteLegacyTxtCopies
 )
 
 $ErrorActionPreference = "Stop"
 
 $bootstrapScript = Join-Path $PSScriptRoot "bootstrap-secrets.ps1"
-if (Test-Path $bootstrapScript) {
-    & $bootstrapScript -BedrockApiKey $BedrockApiKey
-} else {
+if (-not (Test-Path $bootstrapScript)) {
     throw "bootstrap-secrets.ps1 not found."
 }
+
+& $bootstrapScript `
+    -BedrockApiKey $BedrockApiKey `
+    -Rotate:$Rotate `
+    -WritePlaintextSummary:$WritePlaintextSummary `
+    -WriteLegacyTxtCopies:$WriteLegacyTxtCopies

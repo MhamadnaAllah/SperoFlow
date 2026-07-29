@@ -3,14 +3,24 @@ param(
     [string]$SecretsDirectory = (Join-Path $PSScriptRoot "..\infrastructure\secrets"),
     [string]$RuntimeSecretsDirectory = (Join-Path $PSScriptRoot "..\secrets"),
     [string]$BackupDirectory = (Join-Path $PSScriptRoot "..\secrets_backup"),
-    [switch]$Rotate
+    [string]$BedrockApiKey = $(if ($env:BEDROCK_API_KEY) { $env:BEDROCK_API_KEY } else { "" }),
+    [switch]$Rotate,
+    [switch]$WritePlaintextSummary,
+    [switch]$WriteLegacyTxtCopies
 )
 
 $ErrorActionPreference = "Stop"
 
 $bootstrapScript = Join-Path $PSScriptRoot "bootstrap-secrets.ps1"
-if (Test-Path $bootstrapScript) {
-    & $bootstrapScript -SecretsDirectory $SecretsDirectory -RuntimeSecretsDirectory $RuntimeSecretsDirectory -BackupDirectory $BackupDirectory -Rotate:$Rotate
-} else {
+if (-not (Test-Path $bootstrapScript)) {
     throw "bootstrap-secrets.ps1 not found."
 }
+
+& $bootstrapScript `
+    -SecretsDirectory $SecretsDirectory `
+    -RuntimeSecretsDirectory $RuntimeSecretsDirectory `
+    -BackupDirectory $BackupDirectory `
+    -BedrockApiKey $BedrockApiKey `
+    -Rotate:$Rotate `
+    -WritePlaintextSummary:$WritePlaintextSummary `
+    -WriteLegacyTxtCopies:$WriteLegacyTxtCopies

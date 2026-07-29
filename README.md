@@ -84,15 +84,34 @@ flowchart TD
 # 1. Create Docker bridge networks
 pwsh ./scripts/Initialize-KnowledgePlatformNetworks.ps1
 
-# 2. Generate deployment secrets & RSA keys
-pwsh ./scripts/bootstrap-secrets-v2.ps1
+# 2. Secrets: local bootstrap for lab, OR pull from AWS Secrets Manager on a real host
+#    See infrastructure/MANAGED_SECRETS.md
+pwsh ./scripts/bootstrap-secrets.ps1
+# pwsh ./scripts/aws-secrets-pull.ps1 -Environment prod -Region us-east-1
 
 # 3. Create .env configuration
 cp .env.example .env
 
-# 4. Start Knowledge Platform & Main App
+# 4. Validate Compose, then start Knowledge Platform & Main App
+pwsh ./scripts/validate-compose.ps1
 docker compose -f knowledge-platform/compose.yaml up -d --build
 docker compose up -d --build
+```
+
+Do **not** commit `secrets/`, `secrets_backup/`, or `.env`. Before pushing from a machine that generated secrets, run `pwsh ./scripts/reset-secrets-before-git.ps1`.
+
+```bash
+# Preflight (secrets + compose + tests) and post-deploy checks (no app login required)
+pwsh ./scripts/preflight.ps1
+pwsh ./scripts/stack-status.ps1
+pwsh ./scripts/smoke-release.ps1
+pwsh ./scripts/e2e-smoke.ps1
+# Playwright (login / CSRF / proposals) — see e2e/README.md
+#   cd e2e; npm install; npx playwright install chromium; npm run test:mocked
+# optional metrics: docker compose -f compose.yaml -f compose.monitoring.yaml --profile monitoring up -d
+pwsh ./scripts/backup-volumes.ps1
+# restore is destructive — only with -ConfirmRestore on a drill host
+# pwsh ./scripts/restore-postgres.ps1 -Target main -DumpFile .\backups\...\main-postgres.dump -ConfirmRestore
 ```
 
 ### 2. Single AWS EC2 Deployment (Production Mode)
@@ -106,6 +125,10 @@ docker compose -f knowledge-platform/compose.yaml up -d --build
 # Start Main Stack with Production Override
 docker compose -f compose.yaml -f compose.prod.yaml up -d --build
 ```
+
+See [`infrastructure/DEPLOYMENT.md`](infrastructure/DEPLOYMENT.md) and [`infrastructure/OPERATIONS.md`](infrastructure/OPERATIONS.md) for pre-flight checks, backups, and secret rotation.
+
+CI runs on push/PR via [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ---
 

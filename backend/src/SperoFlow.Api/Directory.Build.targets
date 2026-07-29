@@ -1,6 +1,2 @@
 <Project>
-  <!-- The workspace patch layer cannot update the original startup file in place. -->
-  <ItemGroup>
-    <Compile Remove="Program.cs" />
-  </ItemGroup>
 </Project>

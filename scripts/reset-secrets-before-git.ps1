@@ -1,28 +1,36 @@
-# PowerShell script to reset all secret files, backup credentials, and environment keys before pushing to Git.
-$ErrorActionPreference = "Continue"
+# Scrub local secret material and fail if git would stage secret paths.
+# Run from the repository root before committing when secrets may have been generated locally.
+$ErrorActionPreference = "Stop"
 
-$WorkspaceDir = Get-Location
+$WorkspaceDir = if ($PSScriptRoot) {
+    (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+} else {
+    (Get-Location).Path
+}
+
 $InfraSecretsDir = Join-Path $WorkspaceDir "infrastructure\secrets"
 $SecretsDir = Join-Path $WorkspaceDir "secrets"
 $BackupDir = Join-Path $WorkspaceDir "secrets_backup"
 
-Write-Host "Scrubbing all generated secrets and credential backups before Git commit..." -ForegroundColor Yellow
+Write-Host "Scrubbing generated secrets and credential backups before Git commit..." -ForegroundColor Yellow
 
 # 1. Remove infrastructure secrets directory files (preserve .gitignore and README.md)
 if (Test-Path $InfraSecretsDir) {
-    Get-ChildItem -Path $InfraSecretsDir -File | Where-Object { $_.Name -ne ".gitignore" -and $_.Name -ne "README.md" } | Remove-Item -Force
+    Get-ChildItem -Path $InfraSecretsDir -File |
+        Where-Object { $_.Name -ne ".gitignore" -and $_.Name -ne "README.md" } |
+        Remove-Item -Force
     Write-Host "Scrubbed directory: $InfraSecretsDir (preserved .gitignore & README.md)" -ForegroundColor Green
 }
 
 # 2. Remove runtime secrets directory files
 if (Test-Path $SecretsDir) {
-    Remove-Item -Path "$SecretsDir\*" -Recurse -Force
+    Get-ChildItem -Path $SecretsDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Write-Host "Scrubbed directory: $SecretsDir" -ForegroundColor Green
 }
 
-# 3. Remove backup credentials directory files
+# 3. Remove backup credentials directory files (including CREDENTIALS_SUMMARY.md / SECRETS_INVENTORY.md)
 if (Test-Path $BackupDir) {
-    Remove-Item -Path "$BackupDir\*" -Recurse -Force
+    Get-ChildItem -Path $BackupDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Write-Host "Scrubbed directory: $BackupDir" -ForegroundColor Green
 }
 
@@ -36,11 +44,48 @@ foreach ($envFile in $LocalEnvFiles) {
     }
 }
 
-# 5. Check git status for uncommitted secret files
+# 5. Unstage any accidentally tracked secret paths (best-effort)
+Push-Location $WorkspaceDir
 try {
-    git rm --cached -r secrets/ secrets_backup/ infrastructure/secrets/ .env .env.local aura.env 2>$null
-} catch {}
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        git rm --cached -r --ignore-unmatch secrets/ secrets_backup/ infrastructure/secrets/ .env .env.local .env.production aura.env 2>$null | Out-Null
 
-Write-Host "All secrets, credentials, and API keys scrubbed safely." -ForegroundColor Green
-Write-Host "Workspace is clean and ready for Git commit and push!" -ForegroundColor Green
+        $forbiddenPatterns = @(
+            '^secrets/',
+            '^secrets_backup/',
+            '^infrastructure/secrets/',
+            '^\.env$',
+            '^\.env\.',
+            '^aura\.env$'
+        )
+        $staged = @(git diff --cached --name-only 2>$null)
+        $violations = @()
+        foreach ($path in $staged) {
+            $normalized = ($path -replace '\\', '/').Trim()
+            foreach ($pattern in $forbiddenPatterns) {
+                if ($normalized -match $pattern) {
+                    # Allow the documented exceptions under infrastructure/secrets
+                    if ($normalized -eq 'infrastructure/secrets/.gitignore' -or $normalized -eq 'infrastructure/secrets/README.md') {
+                        continue
+                    }
+                    $violations += $normalized
+                    break
+                }
+            }
+        }
 
+        if ($violations.Count -gt 0) {
+            Write-Host "ERROR: Secret-related paths are still staged for commit:" -ForegroundColor Red
+            $violations | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+            throw "Refusing to leave secret material staged. Unstage these paths and re-run."
+        }
+
+        Write-Host "Git index check passed (no secret paths staged)." -ForegroundColor Green
+    }
+}
+finally {
+    Pop-Location
+}
+
+Write-Host "All secrets, credentials, and API key files scrubbed." -ForegroundColor Green
+Write-Host "Workspace is clean for Git commit (re-bootstrap secrets on the deploy host after push)." -ForegroundColor Green

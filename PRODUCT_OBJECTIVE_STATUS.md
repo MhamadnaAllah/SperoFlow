@@ -71,3 +71,57 @@ can apply a change.
 - AI-core Coach service implementation with structured output parsing and deterministic keyword fallback.
 - Frontend `/coach` workspace view, top navigation, and sidebar integration built with Next.js.
 - Runtime integration still requires a PostgreSQL-backed Compose environment before production cutover.
+
+## Phase 1–2 production hardening (landed in tree)
+
+Completed engineering hardening toward pilot readiness (not full public production):
+
+### Phase 1
+- Secrets bootstrap no longer writes plaintext credential dumps by default; inventory is fingerprints/presence only.
+- Hardcoded Bedrock API key default removed from bootstrap scripts.
+- GitHub Actions CI covers compose validation, domain tests, knowledge infra tests, AI-core offline tests, frontend test/build.
+- Compose validation covers main, prod, GPU profile, and knowledge stacks.
+- API entrypoint canonicalized to a single `Program.cs` (OIDC + CSRF + JSON logs).
+- `scripts/backup-volumes.ps1` added for logical Postgres dumps (optional Neo4j/MinIO).
+
+### Phase 2
+- Local plaintext `CREDENTIALS_SUMMARY.md` removed; prefer inventory-only summaries.
+- `scripts/check-no-secrets.ps1` + CI secret-pattern guard and Gitleaks.
+- `scripts/smoke-release.ps1` for post-deploy health/port audits (no app credentials).
+- AI service JWT enforcement unit tests (`ai-core/tests/test_service_auth.py`).
+- Caddy edge headers tightened (`X-Frame-Options`, COOP/CORP).
+- CI dependency vulnerability reports (dotnet list / npm audit, informational).
+
+### Phase 3
+- `scripts/preflight.ps1` chains secret scan, compose validation, and unit tests.
+- `scripts/stack-status.ps1` aggregates container health + host port audit.
+- Request correlation (`X-Request-Id`) and timing logs on main API and AI API.
+- AI `/health/ready` returns HTTP 503 when Neo4j is down (orchestrator-friendly).
+- `compose.prod.yaml`: `LOG_FORMAT=json`, log rotation, `SERVICE_NAME` for AI services.
+
+### Phase 4
+- Caddy forwards `X-Request-Id` / `X-Correlation-ID` to app and knowledge APIs.
+- `scripts/restore-postgres.ps1` guarded restore helper (`-ConfirmRestore` required).
+- Smoke probe documents correlation-header behavior.
+
+### Managed secrets (Phases A–B scaffolding — in tree)
+- Design: `infrastructure/MANAGED_SECRETS.md` (SM source of truth, host materialize for Compose).
+- Catalog: `infrastructure/aws/secrets-catalog.json` + `scripts/validate-secrets-catalog.ps1`.
+- IAM JSON templates + **CloudFormation** `speroflow-secrets-stack.yaml` (KMS, read/admin policies, optional EC2 role).
+- Scripts: `aws-secrets-push.ps1`, `aws-secrets-pull.ps1`, `aws-secrets-sync.ps1`.
+- Boot helpers: `speroflow-secrets-pull.service`, `speroflow-secrets-pull.sh`.
+- CI: catalog sync + push/pull dry-run + CFN template parse; preflight includes the same gates.
+- SSM reserved for non-secret config examples only.
+
+### Observability + smoke (in tree)
+- Prometheus text metrics on private `/metrics` for main API and AI API (Caddy blocks public access).
+- Optional `compose.monitoring.yaml` profile with Prometheus (localhost:9090 only).
+- CloudWatch agent example config under `infrastructure/monitoring/`.
+- Dependency-light `scripts/e2e-smoke.mjs` (+ CI syntax job) for edge health/header checks.
+
+### Playwright browser E2E (in tree)
+- `e2e/` package with mocked API + Next rewrites (`API_PROXY_TARGET`) for login, CSRF header, proposal approve.
+- Live project when `E2E_BASE_URL` + credentials are set.
+- CI job `playwright-e2e-mocked` runs Chromium against mock stack.
+
+Still open before public production: HA/multi-AZ, **run CFN + first live push in the AWS account**, SM rotation Lambdas, ECS native secret injection, Grafana/alerting rules, knowledge legacy table retirement, live restore drills on real hosts, richer live Playwright coverage (full proposal lifecycle against real AI).

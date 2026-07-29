@@ -4,6 +4,17 @@ Deploy the two Compose stacks on one VM. Caddy is the only service that
 publishes host ports. Never publish PostgreSQL, Redis, MinIO, Neo4j, AI API, or
 worker ports.
 
+## Pre-flight checklist
+
+- [ ] CI green on the release commit (`.github/workflows/ci.yml`)
+- [ ] `scripts/preflight.ps1` clean (or equivalent secret/compose/test gates)
+- [ ] Secrets generated on the host only (no committed secrets; no plaintext summary)
+- [ ] `.env` created from `.env.example` with real domains and Caddy email
+- [ ] Backup + restore drill planned (`scripts/backup-volumes.ps1`)
+- [ ] After up: `scripts/stack-status.ps1 -FailOnUnhealthy`, `scripts/smoke-release.ps1`, and `scripts/e2e-smoke.ps1 -RequireStack` pass
+- [ ] Log shipping configured (CloudWatch or equivalent) for json container logs
+- [ ] Optional: monitoring profile up; confirm `/metrics` is **404** on the public app host and scrapable only on the private network
+
 ## Before First Start
 
 1. Install Docker Engine with Compose, point both DNS names to the VM, and
@@ -17,19 +28,36 @@ docker network create speroflow_knowledge_read_bridge
 docker network create speroflow_knowledge_storage_bridge
 ~~~
 
-3. Generate secrets on the deployment host:
+3. Secrets — prefer AWS Secrets Manager (see
+   [`MANAGED_SECRETS.md`](MANAGED_SECRETS.md)):
 
 ~~~powershell
+# First time (admin): bootstrap locally, push to SM, scrub workstation
 powershell -ExecutionPolicy Bypass -File scripts/bootstrap-secrets.ps1
+powershell -ExecutionPolicy Bypass -File scripts/aws-secrets-push.ps1 -Environment prod -Region us-east-1 -KmsKeyId alias/speroflow-secrets
+powershell -ExecutionPolicy Bypass -File scripts/reset-secrets-before-git.ps1
+
+# Every deploy host boot (EC2 instance role):
+powershell -ExecutionPolicy Bypass -File scripts/aws-secrets-pull.ps1 -Environment prod -Region us-east-1
 ~~~
 
+   Prefer deploying `infrastructure/aws/speroflow-secrets-stack.yaml` once per
+   env (KMS + IAM). Fall back to local-only `bootstrap-secrets.ps1` only for
+   air-gapped labs. Do not pass `-WritePlaintextSummary` on shared hosts.
+   Prefer IAM for Bedrock over `bedrock_api_key`.
+
 4. Create an untracked root .env from .env.example. Set APP_DOMAIN,
-   KNOWLEDGE_DOMAIN, and CADDY_EMAIL. Provide Bedrock access through a
-   least-privilege VM or workload identity, never static AWS keys.
+   KNOWLEDGE_DOMAIN, and CADDY_EMAIL. Prefer least-privilege VM or workload
+   identity for Bedrock; never commit static AWS keys.
 5. Confirm the knowledge Neo4j reader password is mounted only by main ai-api.
    The writer credential belongs only to knowledge-worker.
 6. Use immutable image digests in the production deployment manifest after the
    approved image versions have been scanned and promoted.
+7. Validate Compose before first up:
+
+~~~powershell
+powershell -ExecutionPolicy Bypass -File scripts/validate-compose.ps1
+~~~
 
 ## Start Order
 
@@ -73,8 +101,12 @@ owner assignment in the portal must follow central role assignment.
 - From the main app, list the dataset and run a query through /api/v1/ai/query.
 - Verify Caddy is the only service with host ports and that the main API has no
   knowledge database or object-storage credentials.
-- Test backup restoration for both PostgreSQL stores, MinIO volumes, and the
-  dedicated Neo4j graph before production cutover.
+- Take a pre-cutover backup and test restoration for both PostgreSQL stores,
+  MinIO volumes, and the dedicated Neo4j graph:
+
+~~~powershell
+powershell -ExecutionPolicy Bypass -File scripts/backup-volumes.ps1 -IncludeNeo4j -IncludeObjectStores
+~~~
 
 Knowledge access grants are deliberately short-lived (90 seconds by default).
 Role, publication, or ownership changes stop new grants immediately; the

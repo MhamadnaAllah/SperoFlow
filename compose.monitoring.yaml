@@ -1,0 +1,38 @@
+name: speroflow
+
+# Optional monitoring profile. Scrape private container metrics only.
+# Usage:
+#   docker compose -f compose.yaml -f compose.prod.yaml -f compose.monitoring.yaml --profile monitoring up -d
+#
+# Prometheus UI (ops only): host port 9090. Do not expose this on a public security group.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - private
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+volumes:
+  prometheus_data:

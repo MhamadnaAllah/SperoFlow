@@ -2,6 +2,9 @@ name: speroflow
 
 # Production Docker Compose Override for Single-EC2 AWS Deployment
 # Enforces resource limits (RAM/CPU), routes LLM to AWS Bedrock, and disables local GPU containers.
+#
+# After the first promoted release, replace `build:` entries in compose.yaml with
+# immutable image digests (scanned + promoted) instead of rebuilding from source on the host.
 
 services:
   reverse-proxy:
@@ -10,6 +13,11 @@ services:
         limits:
           cpus: "1.0"
           memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     deploy:
@@ -17,10 +25,17 @@ services:
         limits:
           cpus: "1.5"
           memory: 1500M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      # Program.cs uses Microsoft.Extensions.Logging JSON console when LOG_FORMAT=json.
+      LOG_FORMAT: json
       Serilog__MinimumLevel__Default: Information
       Serilog__WriteTo__0__Name: Console
       Serilog__WriteTo__0__Args__formatter: Serilog.Formatting.Json.JsonFormatter, Serilog
@@ -29,13 +44,26 @@ services:
         limits:
           cpus: "2.0"
           memory: 2000M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   api-worker:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      LOG_FORMAT: json
     deploy:
       resources:
         limits:
           cpus: "1.5"
           memory: 1500M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   postgres:
     deploy:
@@ -72,6 +100,7 @@ services:
   ai-api:
     environment:
       APP_ENV: production
+      SERVICE_NAME: speroflow-ai-api
       LLM_PROVIDER: bedrock
       ROUTER_PROVIDER: bedrock
       LLM_MODEL: ${BEDROCK_MODEL_ID:-google.gemma-4-31b}
@@ -85,10 +114,16 @@ services:
         limits:
           cpus: "2.0"
           memory: 2000M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   ai-worker:
     environment:
       APP_ENV: production
+      SERVICE_NAME: speroflow-ai-worker
       LLM_PROVIDER: bedrock
       DATASET_EXTRACTION_MODEL: google.gemma-4-31b
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
@@ -99,6 +134,11 @@ services:
         limits:
           cpus: "2.0"
           memory: 2000M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   # Local GPU container disabled for production
   llm-runtime:

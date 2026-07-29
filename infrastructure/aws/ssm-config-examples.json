@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "Optional non-secret SSM parameters (String). Do not store passwords here.",
+  "parameters": [
+    {
+      "name": "/speroflow/{environment}/config/app_domain",
+      "type": "String",
+      "example": "app.example.com"
+    },
+    {
+      "name": "/speroflow/{environment}/config/knowledge_domain",
+      "type": "String",
+      "example": "knowledge.example.com"
+    },
+    {
+      "name": "/speroflow/{environment}/config/bedrock_region",
+      "type": "String",
+      "example": "us-east-1"
+    },
+    {
+      "name": "/speroflow/{environment}/config/bedrock_model_id",
+      "type": "String",
+      "example": "google.gemma-4-31b"
+    }
+  ],
+  "notes": [
+    "Pull these into .env with a future helper if desired; Compose already uses root .env for domains.",
+    "Prefer Secrets Manager for any value that authenticates or encrypts."
+  ]
+}

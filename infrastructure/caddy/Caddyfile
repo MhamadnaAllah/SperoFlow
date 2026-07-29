@@ -12,10 +12,17 @@
     header {
         -Server
         X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
         Referrer-Policy "no-referrer"
         Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Resource-Policy "same-site"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
+
+    # Metrics stay on the private Docker network only (Prometheus scrapes api:8080).
+    @metrics path /metrics /metrics/*
+    respond @metrics "Not found" 404
 
     @api path /api/* /connect/* /.well-known/* /health/live /health/ready
     handle @api {
@@ -26,11 +33,16 @@
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Host {host}
             header_up X-Forwarded-Proto {scheme}
+            # Forward client correlation id when present; API generates one if absent.
+            header_up X-Request-Id {http.request.header.X-Request-Id}
+            header_up X-Correlation-ID {http.request.header.X-Correlation-ID}
         }
     }
 
     handle {
-        reverse_proxy web:3000
+        reverse_proxy web:3000 {
+            header_up X-Request-Id {http.request.header.X-Request-Id}
+        }
     }
 }
 
@@ -40,8 +52,11 @@
     header {
         -Server
         X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
         Referrer-Policy "no-referrer"
         Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Resource-Policy "same-site"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
@@ -58,6 +73,8 @@
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Host {host}
             header_up X-Forwarded-Proto {scheme}
+            header_up X-Request-Id {http.request.header.X-Request-Id}
+            header_up X-Correlation-ID {http.request.header.X-Correlation-ID}
         }
     }
 
@@ -70,6 +87,8 @@
     }
 
     handle {
-        reverse_proxy knowledge-portal:3000
+        reverse_proxy knowledge-portal:3000 {
+            header_up X-Request-Id {http.request.header.X-Request-Id}
+        }
     }
 }

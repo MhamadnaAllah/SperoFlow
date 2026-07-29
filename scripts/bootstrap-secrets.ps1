@@ -2,8 +2,13 @@ param(
     [string]$SecretsDirectory = (Join-Path $PSScriptRoot "..\infrastructure\secrets"),
     [string]$RuntimeSecretsDirectory = (Join-Path $PSScriptRoot "..\secrets"),
     [string]$BackupDirectory = (Join-Path $PSScriptRoot "..\secrets_backup"),
-    [string]$BedrockApiKey = "ABSKTWFudGxlQXBpS2V5LTdvaXExbm80LWF0LTU2NDM3MTE4MDQ5NDpPaWwvNy8rL3VIeUR2OW02ZjJFajZPYllJT2FDL1J6QVZrQ0dYaUJwZFpNNTArSjZjRlVvY25yUmZpVT0=",
-    [switch]$Rotate
+    # Prefer env BEDROCK_API_KEY. Never embed a real key as a script default.
+    [string]$BedrockApiKey = $(if ($env:BEDROCK_API_KEY) { $env:BEDROCK_API_KEY } else { "" }),
+    [switch]$Rotate,
+    # Dev-only: write CREDENTIALS_SUMMARY.md with raw secret values. Never use on shared hosts.
+    [switch]$WritePlaintextSummary,
+    # Legacy dual .txt copies under secrets/. Compose does not use these.
+    [switch]$WriteLegacyTxtCopies
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,6 +66,14 @@ function Ensure-FixedSecret {
     $path = Join-Path $SecretsDirectory $Name
     if ((Test-Path -LiteralPath $path) -and -not $Rotate) {
         Write-Output "Preserving existing secret: $Name"
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            Write-Utf8NoBom -Path $path -Value ""
+            Write-Output "Created empty placeholder for $Name (set via -BedrockApiKey or BEDROCK_API_KEY, or mount from a secrets manager)."
+        }
         return
     }
 
@@ -136,11 +149,64 @@ function Ensure-PfxCertificate {
     Write-Output "Generated certificate: $CertificateName"
 }
 
+function Get-RsaKeyFingerprint {
+    param([string]$PublicPath)
+    if (-not (Test-Path -LiteralPath $PublicPath)) {
+        return "(missing)"
+    }
+    $lines = & $openssl.Source rsa -pubin -in $PublicPath -outform DER 2>$null | & $openssl.Source dgst -sha256
+    $lineStr = $lines -join " "
+    if ($lineStr -match "=\s*([a-fA-F0-9]+)") {
+        return $matches[1].ToLowerInvariant()
+    }
+    return $lineStr.Trim()
+}
+
+function Get-PfxCertSummary {
+    param([string]$PfxPath, [string]$Password)
+    if (-not (Test-Path -LiteralPath $PfxPath) -or [string]::IsNullOrWhiteSpace($Password)) {
+        return @{
+            Subject = "(missing)"
+            Fingerprint = "(missing)"
+            Serial = "(missing)"
+            Dates = "(missing)"
+        }
+    }
+    $subjectRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" 2>$null | & $openssl.Source x509 -noout -subject) -join " "
+    $fpRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" 2>$null | & $openssl.Source x509 -noout -fingerprint -sha256) -join " "
+    $datesRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" 2>$null | & $openssl.Source x509 -noout -dates) -join " "
+    $serialRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" 2>$null | & $openssl.Source x509 -noout -serial) -join " "
+
+    $subjectVal = if ($subjectRaw -match "subject=\s*(.*)") { $matches[1].Trim() } else { $subjectRaw.Trim() }
+    $fpVal = if ($fpRaw -match "Fingerprint=\s*(.*)") { $matches[1].Trim() } else { $fpRaw.Trim() }
+    $serialVal = if ($serialRaw -match "serial=\s*(.*)") { $matches[1].Trim() } else { $serialRaw.Trim() }
+
+    return @{
+        Subject = $subjectVal
+        Fingerprint = $fpVal
+        Serial = $serialVal
+        Dates = $datesRaw.Trim()
+    }
+}
+
+function Test-SecretPresent {
+    param([string]$Name)
+    $path = Join-Path $SecretsDirectory $Name
+    if (-not (Test-Path -LiteralPath $path)) {
+        return "missing"
+    }
+    $raw = (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return "empty"
+    }
+    return "present"
+}
+
 New-Item -ItemType Directory -Force -Path $SecretsDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $RuntimeSecretsDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null
 
-@(
+$randomSecretNames = @(
     "postgres_password",
     "redis_password",
     "neo4j_password",
@@ -155,7 +221,8 @@ New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null
     "knowledge_minio_access_key",
     "knowledge_minio_secret_key",
     "smtp_password"
-) | ForEach-Object { Ensure-RandomSecret -Name $_ }
+)
+$randomSecretNames | ForEach-Object { Ensure-RandomSecret -Name $_ }
 
 Ensure-FixedSecret -Name "bedrock_api_key" -Value $BedrockApiKey
 
@@ -167,79 +234,41 @@ Ensure-PfxCertificate -CertificateName "oidc_signing_certificate" -PasswordName 
 Ensure-PfxCertificate -CertificateName "oidc_encryption_certificate" -PasswordName "oidc_encryption_certificate_password" -Subject "/CN=SperoFlow OIDC Encryption"
 Ensure-PfxCertificate -CertificateName "knowledge_portal_data_protection_certificate" -PasswordName "knowledge_portal_data_protection_certificate_password" -Subject "/CN=SperoFlow Knowledge Portal Data Protection"
 
-# Copy secret files to secrets_backup and runtime secrets directory
+# Mirror secret files to runtime mount dir and optional offline backup (file copies, not markdown dumps).
 Get-ChildItem -Path $SecretsDirectory -File | Where-Object { $_.Name -ne ".gitignore" -and $_.Name -ne "README.md" } | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination (Join-Path $BackupDirectory $_.Name) -Force
     Copy-Item -Path $_.FullName -Destination (Join-Path $RuntimeSecretsDirectory $_.Name) -Force
 }
 
-# Ensure .txt copies in runtime secrets directory for legacy compatibility
-$legacyTxtMapping = @{
-    "admin_bootstrap_token" = "admin_bootstrap_token.txt"
-    "bedrock_api_key" = "bedrock_api_key.txt"
-    "minio_access_key" = "minio_access_key.txt"
-    "minio_secret_key" = "minio_secret_key.txt"
-    "neo4j_password" = "neo4j_password.txt"
-    "postgres_password" = "postgres_password.txt"
-    "redis_password" = "redis_password.txt"
-    "oidc_signing_certificate_password" = "cert_password.txt"
-}
-foreach ($key in $legacyTxtMapping.Keys) {
-    $srcFile = Join-Path $SecretsDirectory $key
-    if (Test-Path $srcFile) {
-        Copy-Item -Path $srcFile -Destination (Join-Path $RuntimeSecretsDirectory $legacyTxtMapping[$key]) -Force
+if ($WriteLegacyTxtCopies) {
+    $legacyTxtMapping = @{
+        "admin_bootstrap_token" = "admin_bootstrap_token.txt"
+        "bedrock_api_key" = "bedrock_api_key.txt"
+        "minio_access_key" = "minio_access_key.txt"
+        "minio_secret_key" = "minio_secret_key.txt"
+        "neo4j_password" = "neo4j_password.txt"
+        "postgres_password" = "postgres_password.txt"
+        "redis_password" = "redis_password.txt"
+        "oidc_signing_certificate_password" = "cert_password.txt"
     }
-}
-
-# Generate CREDENTIALS_SUMMARY.md
-function Get-RsaKeyFingerprint {
-    param([string]$PublicPath)
-    $lines = & $openssl.Source rsa -pubin -in $PublicPath -outform DER | & $openssl.Source dgst -sha256
-    $lineStr = $lines -join " "
-    if ($lineStr -match "=\s*([a-fA-F0-9]+)") {
-        return $matches[1].ToLowerInvariant()
+    foreach ($key in $legacyTxtMapping.Keys) {
+        $srcFile = Join-Path $SecretsDirectory $key
+        if (Test-Path $srcFile) {
+            Copy-Item -Path $srcFile -Destination (Join-Path $RuntimeSecretsDirectory $legacyTxtMapping[$key]) -Force
+        }
     }
-    return $lineStr.Trim()
+    Write-Output "Wrote legacy .txt secret copies under $RuntimeSecretsDirectory (opt-in)."
 }
 
-function Get-PfxCertSummary {
-    param([string]$PfxPath, [string]$Password)
-    $subjectRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" | & $openssl.Source x509 -noout -subject) -join " "
-    $fpRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" | & $openssl.Source x509 -noout -fingerprint -sha256) -join " "
-    $datesRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" | & $openssl.Source x509 -noout -dates) -join " "
-    $serialRaw = (& $openssl.Source pkcs12 -in $PfxPath -nodes -passin "pass:$Password" | & $openssl.Source x509 -noout -serial) -join " "
-
-    $subjectVal = if ($subjectRaw -match "subject=\s*(.*)") { $matches[1].Trim() } else { $subjectRaw.Trim() }
-    $fpVal = if ($fpRaw -match "Fingerprint=\s*(.*)") { $matches[1].Trim() } else { $fpRaw.Trim() }
-    $serialVal = if ($serialRaw -match "serial=\s*(.*)") { $matches[1].Trim() } else { $serialRaw.Trim() }
-
-    return @{
-        Subject = $subjectVal
-        Fingerprint = $fpVal
-        Serial = $serialVal
-        Dates = $datesRaw.Trim()
-    }
-}
-
-$pgPass = (Get-Content (Join-Path $SecretsDirectory "postgres_password") -Raw).Trim()
-$redisPass = (Get-Content (Join-Path $SecretsDirectory "redis_password") -Raw).Trim()
-$neo4jPass = (Get-Content (Join-Path $SecretsDirectory "neo4j_password") -Raw).Trim()
-$minioAccess = (Get-Content (Join-Path $SecretsDirectory "minio_access_key") -Raw).Trim()
-$minioSecret = (Get-Content (Join-Path $SecretsDirectory "minio_secret_key") -Raw).Trim()
-$adminToken = (Get-Content (Join-Path $SecretsDirectory "admin_bootstrap_token") -Raw).Trim()
-$kPgPass = (Get-Content (Join-Path $SecretsDirectory "knowledge_postgres_password") -Raw).Trim()
-$kRedisPass = (Get-Content (Join-Path $SecretsDirectory "knowledge_redis_password") -Raw).Trim()
-$kNeo4jPass = (Get-Content (Join-Path $SecretsDirectory "knowledge_neo4j_password") -Raw).Trim()
-$kNeo4jReaderPass = (Get-Content (Join-Path $SecretsDirectory "knowledge_neo4j_reader_password") -Raw).Trim()
-$kNeo4jWriterPass = (Get-Content (Join-Path $SecretsDirectory "knowledge_neo4j_writer_password") -Raw).Trim()
-$kMinioAccess = (Get-Content (Join-Path $SecretsDirectory "knowledge_minio_access_key") -Raw).Trim()
-$kMinioSecret = (Get-Content (Join-Path $SecretsDirectory "knowledge_minio_secret_key") -Raw).Trim()
-$smtpPass = (Get-Content (Join-Path $SecretsDirectory "smtp_password") -Raw).Trim()
-$bedrockKey = (Get-Content (Join-Path $SecretsDirectory "bedrock_api_key") -Raw).Trim()
-
-$oidcSignPass = (Get-Content (Join-Path $SecretsDirectory "oidc_signing_certificate_password") -Raw).Trim()
-$oidcEncPass = (Get-Content (Join-Path $SecretsDirectory "oidc_encryption_certificate_password") -Raw).Trim()
-$kDpPass = (Get-Content (Join-Path $SecretsDirectory "knowledge_portal_data_protection_certificate_password") -Raw).Trim()
+$oidcSignPass = if (Test-Path (Join-Path $SecretsDirectory "oidc_signing_certificate_password")) {
+    (Get-Content (Join-Path $SecretsDirectory "oidc_signing_certificate_password") -Raw).Trim()
+} else { "" }
+$oidcEncPass = if (Test-Path (Join-Path $SecretsDirectory "oidc_encryption_certificate_password")) {
+    (Get-Content (Join-Path $SecretsDirectory "oidc_encryption_certificate_password") -Raw).Trim()
+} else { "" }
+$kDpPass = if (Test-Path (Join-Path $SecretsDirectory "knowledge_portal_data_protection_certificate_password")) {
+    (Get-Content (Join-Path $SecretsDirectory "knowledge_portal_data_protection_certificate_password") -Raw).Trim()
+} else { "" }
 
 $serviceJwtFp = Get-RsaKeyFingerprint (Join-Path $SecretsDirectory "service_jwt_public_key")
 $kServiceJwtFp = Get-RsaKeyFingerprint (Join-Path $SecretsDirectory "knowledge_service_jwt_public_key")
@@ -251,116 +280,178 @@ $kDpCert = Get-PfxCertSummary -PfxPath (Join-Path $SecretsDirectory "knowledge_p
 
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss K"
 
-$template = @'
-# SperoFlow Credentials & Secrets Backup
+$inventoryLines = New-Object System.Collections.Generic.List[string]
+$inventoryLines.Add("# SperoFlow Secrets Inventory")
+$inventoryLines.Add("")
+$inventoryLines.Add("Generated At: $timestamp")
+$inventoryLines.Add("")
+$inventoryLines.Add("> Safe by default: this file lists presence and public fingerprints only.")
+$inventoryLines.Add("> It does **not** contain passwords, tokens, private keys, or API keys.")
+$inventoryLines.Add("> Raw values live only in Docker secret files under infrastructure/secrets (gitignored).")
+$inventoryLines.Add("")
+$inventoryLines.Add("## Secret file status")
+$inventoryLines.Add("")
+$allSecretNames = $randomSecretNames + @(
+    "bedrock_api_key",
+    "service_jwt_private_key",
+    "service_jwt_public_key",
+    "knowledge_service_jwt_private_key",
+    "knowledge_service_jwt_public_key",
+    "knowledge_grant_private_key",
+    "knowledge_grant_public_key",
+    "oidc_signing_certificate",
+    "oidc_signing_certificate_password",
+    "oidc_encryption_certificate",
+    "oidc_encryption_certificate_password",
+    "knowledge_portal_data_protection_certificate",
+    "knowledge_portal_data_protection_certificate_password"
+)
+foreach ($name in $allSecretNames) {
+    $status = Test-SecretPresent -Name $name
+    $inventoryLines.Add("- ``$name``: **$status**")
+}
+$inventoryLines.Add("")
+$inventoryLines.Add("## RSA public key fingerprints (SHA-256)")
+$inventoryLines.Add("")
+$inventoryLines.Add("- service_jwt_public_key: ``$serviceJwtFp``")
+$inventoryLines.Add("- knowledge_service_jwt_public_key: ``$kServiceJwtFp``")
+$inventoryLines.Add("- knowledge_grant_public_key: ``$kGrantFp``")
+$inventoryLines.Add("")
+$inventoryLines.Add("## Certificate inventory")
+$inventoryLines.Add("")
+$inventoryLines.Add("### OIDC signing")
+$inventoryLines.Add("- Subject: $($oidcSignCert['Subject'])")
+$inventoryLines.Add("- Serial: $($oidcSignCert['Serial'])")
+$inventoryLines.Add("- Validity: $($oidcSignCert['Dates'])")
+$inventoryLines.Add("- SHA256: $($oidcSignCert['Fingerprint'])")
+$inventoryLines.Add("")
+$inventoryLines.Add("### OIDC encryption")
+$inventoryLines.Add("- Subject: $($oidcEncCert['Subject'])")
+$inventoryLines.Add("- Serial: $($oidcEncCert['Serial'])")
+$inventoryLines.Add("- Validity: $($oidcEncCert['Dates'])")
+$inventoryLines.Add("- SHA256: $($oidcEncCert['Fingerprint'])")
+$inventoryLines.Add("")
+$inventoryLines.Add("### Knowledge portal data protection")
+$inventoryLines.Add("- Subject: $($kDpCert['Subject'])")
+$inventoryLines.Add("- Serial: $($kDpCert['Serial'])")
+$inventoryLines.Add("- Validity: $($kDpCert['Dates'])")
+$inventoryLines.Add("- SHA256: $($kDpCert['Fingerprint'])")
+$inventoryLines.Add("")
+$inventoryLines.Add("## How to read a secret on the host")
+$inventoryLines.Add("")
+$inventoryLines.Add('```powershell')
+$inventoryLines.Add('Get-Content .\infrastructure\secrets\postgres_password -Raw')
+$inventoryLines.Add('```')
+$inventoryLines.Add("")
+$inventoryLines.Add("## Rotation")
+$inventoryLines.Add("")
+$inventoryLines.Add("After any suspected exposure, rotate on the deploy host:")
+$inventoryLines.Add("")
+$inventoryLines.Add('```powershell')
+$inventoryLines.Add('powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-secrets.ps1 -Rotate')
+$inventoryLines.Add('```')
+$inventoryLines.Add("")
+$inventoryLines.Add("Do not commit this directory. Prefer a secrets manager for production.")
+
+$inventoryPath = Join-Path $BackupDirectory "SECRETS_INVENTORY.md"
+Write-Utf8NoBom -Path $inventoryPath -Value ($inventoryLines -join [Environment]::NewLine)
+Write-Output "Wrote non-secret inventory: $inventoryPath"
+
+# Remove stale plaintext summary unless explicitly requested again.
+$plaintextSummaryPath = Join-Path $BackupDirectory "CREDENTIALS_SUMMARY.md"
+if (-not $WritePlaintextSummary -and (Test-Path -LiteralPath $plaintextSummaryPath)) {
+    Remove-Item -LiteralPath $plaintextSummaryPath -Force
+    Write-Output "Removed stale plaintext CREDENTIALS_SUMMARY.md (default is inventory-only)."
+}
+
+if ($WritePlaintextSummary) {
+    Write-Warning "WritePlaintextSummary is enabled. The output file contains live secrets. Keep it offline and never commit it."
+
+    function Read-SecretRaw {
+        param([string]$Name)
+        $path = Join-Path $SecretsDirectory $Name
+        if (-not (Test-Path -LiteralPath $path)) { return "(missing)" }
+        return (Get-Content -LiteralPath $path -Raw).Trim()
+    }
+
+    $template = @'
+# SperoFlow Credentials & Secrets Backup (PLAINTEXT — DEV ONLY)
 
 Generated At: {TIMESTAMP}
 
-> WARNING: This file contains private production & development secrets. DO NOT commit to Git.
+> DANGER: This file contains private secrets. DO NOT commit to Git.
+> Prefer SECRETS_INVENTORY.md. Regenerate without -WritePlaintextSummary for safe defaults.
 
-## 1. Cloud & AI Service Keys
-- **Amazon Bedrock API Key** (`bedrock_api_key`): {BEDROCK_KEY}
+## Cloud & AI
+- bedrock_api_key: {BEDROCK_KEY}
 
-## 2. Main Application Accounts
-- **Admin Bootstrap User**: admin@speroflow.local
-  - Bootstrap Token (`admin_bootstrap_token`): {ADMIN_TOKEN}
-- **Default Application User**: user@speroflow.local
-  - Default Password: SperoFlowUser2026!
+## Bootstrap
+- admin_bootstrap_token: {ADMIN_TOKEN}
 
-## 3. Knowledge Platform Accounts
-- **Knowledge Platform Admin**: knowledge_admin@speroflow.local
-  - Role: KnowledgeAdmin
-  - Password: KnowledgeAdmin2026!
-- **Knowledge Platform Owner**: knowledge_owner@speroflow.local
-  - Role: KnowledgeOwner
-  - Password: KnowledgeOwner2026!
+## Main infrastructure
+- postgres_password: {PG_PASS}
+- neo4j_password: {NEO4J_PASS}
+- redis_password: {REDIS_PASS}
+- minio_access_key: {MINIO_ACCESS}
+- minio_secret_key: {MINIO_SECRET}
+- smtp_password: {SMTP_PASS}
 
-## 4. Infrastructure Passwords
-- **Main PostgreSQL User (`speroflow_app`)** (`postgres_password`): {PG_PASS}
-- **Main Neo4j User (`neo4j`)** (`neo4j_password`): {NEO4J_PASS}
-- **Main Redis Password** (`redis_password`): {REDIS_PASS}
-- **Main MinIO Access Key** (`minio_access_key`): {MINIO_ACCESS}
-- **Main MinIO Secret Key** (`minio_secret_key`): {MINIO_SECRET}
-- **Knowledge PostgreSQL Owner (`speroflow_knowledge`)** (`knowledge_postgres_password`): {K_PG_PASS}
-- **Knowledge Redis Password** (`knowledge_redis_password`): {K_REDIS_PASS}
-- **Knowledge Neo4j Admin (`neo4j`)** (`knowledge_neo4j_password`): {K_NEO4J_PASS}
-- **Knowledge Neo4j Reader (`knowledge_reader`)** (`knowledge_neo4j_reader_password`): {K_NEO4J_READER_PASS}
-- **Knowledge Neo4j Writer (`knowledge_writer`)** (`knowledge_neo4j_writer_password`): {K_NEO4J_WRITER_PASS}
-- **Knowledge MinIO Access Key** (`knowledge_minio_access_key`): {K_MINIO_ACCESS}
-- **Knowledge MinIO Secret Key** (`knowledge_minio_secret_key`): {K_MINIO_SECRET}
-- **SMTP Password** (`smtp_password`): {SMTP_PASS}
+## Knowledge infrastructure
+- knowledge_postgres_password: {K_PG_PASS}
+- knowledge_redis_password: {K_REDIS_PASS}
+- knowledge_neo4j_password: {K_NEO4J_PASS}
+- knowledge_neo4j_reader_password: {K_NEO4J_READER_PASS}
+- knowledge_neo4j_writer_password: {K_NEO4J_WRITER_PASS}
+- knowledge_minio_access_key: {K_MINIO_ACCESS}
+- knowledge_minio_secret_key: {K_MINIO_SECRET}
 
-## 5. RSA 3072 Key Pairs & Fingerprints
-- **Main Service JWT (`service_jwt_private_key`, `service_jwt_public_key`)**:
-  - Key Type: RSA 3072-bit
-  - Public Key SHA256 Fingerprint: {SERVICE_JWT_FP}
-- **Knowledge Service JWT (`knowledge_service_jwt_private_key`, `knowledge_service_jwt_public_key`)**:
-  - Key Type: RSA 3072-bit
-  - Public Key SHA256 Fingerprint: {K_SERVICE_JWT_FP}
-- **Knowledge Grant (`knowledge_grant_private_key`, `knowledge_grant_public_key`)**:
-  - Key Type: RSA 3072-bit
-  - Public Key SHA256 Fingerprint: {K_GRANT_FP}
+## RSA fingerprints
+- service_jwt_public_key: {SERVICE_JWT_FP}
+- knowledge_service_jwt_public_key: {K_SERVICE_JWT_FP}
+- knowledge_grant_public_key: {K_GRANT_FP}
 
-## 6. PKCS#12 (PFX) X.509 Certificates
-- **OIDC Signing Certificate (`oidc_signing_certificate`)**:
-  - Subject: {OIDC_SIGN_SUBJECT}
-  - Password File: `oidc_signing_certificate_password`
-  - Serial Number: {OIDC_SIGN_SERIAL}
-  - Validity: {OIDC_SIGN_DATES}
-  - SHA256 Fingerprint: {OIDC_SIGN_FP}
-- **OIDC Encryption Certificate (`oidc_encryption_certificate`)**:
-  - Subject: {OIDC_ENC_SUBJECT}
-  - Password File: `oidc_encryption_certificate_password`
-  - Serial Number: {OIDC_ENC_SERIAL}
-  - Validity: {OIDC_ENC_DATES}
-  - SHA256 Fingerprint: {OIDC_ENC_FP}
-- **Knowledge Portal Data Protection Certificate (`knowledge_portal_data_protection_certificate`)**:
-  - Subject: {K_DP_SUBJECT}
-  - Password File: `knowledge_portal_data_protection_certificate_password`
-  - Serial Number: {K_DP_SERIAL}
-  - Validity: {K_DP_DATES}
-  - SHA256 Fingerprint: {K_DP_FP}
-
-## 7. Active Docker Endpoints
-- Web Frontend: http://localhost:3000
-- Main API (ASP.NET Core): http://localhost:8080
-- AI API (FastAPI): http://localhost:8000
-- Knowledge Portal: http://localhost:3001
-- MinIO Console: http://localhost:9001
+## Certificates
+- OIDC signing subject: {OIDC_SIGN_SUBJECT} serial={OIDC_SIGN_SERIAL} fp={OIDC_SIGN_FP}
+- OIDC encryption subject: {OIDC_ENC_SUBJECT} serial={OIDC_ENC_SERIAL} fp={OIDC_ENC_FP}
+- Knowledge DP subject: {K_DP_SUBJECT} serial={K_DP_SERIAL} fp={K_DP_FP}
 '@
 
-$summaryMarkdown = $template
-$summaryMarkdown = $summaryMarkdown.Replace('{TIMESTAMP}', $timestamp)
-$summaryMarkdown = $summaryMarkdown.Replace('{BEDROCK_KEY}', $bedrockKey)
-$summaryMarkdown = $summaryMarkdown.Replace('{ADMIN_TOKEN}', $adminToken)
-$summaryMarkdown = $summaryMarkdown.Replace('{PG_PASS}', $pgPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{NEO4J_PASS}', $neo4jPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{REDIS_PASS}', $redisPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{MINIO_ACCESS}', $minioAccess)
-$summaryMarkdown = $summaryMarkdown.Replace('{MINIO_SECRET}', $minioSecret)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_PG_PASS}', $kPgPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_REDIS_PASS}', $kRedisPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_NEO4J_PASS}', $kNeo4jPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_NEO4J_READER_PASS}', $kNeo4jReaderPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_NEO4J_WRITER_PASS}', $kNeo4jWriterPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_MINIO_ACCESS}', $kMinioAccess)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_MINIO_SECRET}', $kMinioSecret)
-$summaryMarkdown = $summaryMarkdown.Replace('{SMTP_PASS}', $smtpPass)
-$summaryMarkdown = $summaryMarkdown.Replace('{SERVICE_JWT_FP}', $serviceJwtFp)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_SERVICE_JWT_FP}', $kServiceJwtFp)
-$summaryMarkdown = $summaryMarkdown.Replace('{K_GRANT_FP}', $kGrantFp)
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_SUBJECT}', $oidcSignCert["Subject"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_SERIAL}', $oidcSignCert["Serial"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_DATES}', $oidcSignCert["Dates"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_FP}', $oidcSignCert["Fingerprint"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_SUBJECT}', $oidcEncCert["Subject"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_SERIAL}', $oidcEncCert["Serial"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_DATES}', $oidcEncCert["Dates"])
-$summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_FP}', $oidcEncCert["Fingerprint"])
-$summaryMarkdown = $summaryMarkdown.Replace('{K_DP_SUBJECT}', $kDpCert["Subject"])
-$summaryMarkdown = $summaryMarkdown.Replace('{K_DP_SERIAL}', $kDpCert["Serial"])
-$summaryMarkdown = $summaryMarkdown.Replace('{K_DP_DATES}', $kDpCert["Dates"])
-$summaryMarkdown = $summaryMarkdown.Replace('{K_DP_FP}', $kDpCert["Fingerprint"])
+    $summaryMarkdown = $template
+    $summaryMarkdown = $summaryMarkdown.Replace('{TIMESTAMP}', $timestamp)
+    $summaryMarkdown = $summaryMarkdown.Replace('{BEDROCK_KEY}', (Read-SecretRaw "bedrock_api_key"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{ADMIN_TOKEN}', (Read-SecretRaw "admin_bootstrap_token"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{PG_PASS}', (Read-SecretRaw "postgres_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{NEO4J_PASS}', (Read-SecretRaw "neo4j_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{REDIS_PASS}', (Read-SecretRaw "redis_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{MINIO_ACCESS}', (Read-SecretRaw "minio_access_key"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{MINIO_SECRET}', (Read-SecretRaw "minio_secret_key"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_PG_PASS}', (Read-SecretRaw "knowledge_postgres_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_REDIS_PASS}', (Read-SecretRaw "knowledge_redis_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_NEO4J_PASS}', (Read-SecretRaw "knowledge_neo4j_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_NEO4J_READER_PASS}', (Read-SecretRaw "knowledge_neo4j_reader_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_NEO4J_WRITER_PASS}', (Read-SecretRaw "knowledge_neo4j_writer_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_MINIO_ACCESS}', (Read-SecretRaw "knowledge_minio_access_key"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_MINIO_SECRET}', (Read-SecretRaw "knowledge_minio_secret_key"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{SMTP_PASS}', (Read-SecretRaw "smtp_password"))
+    $summaryMarkdown = $summaryMarkdown.Replace('{SERVICE_JWT_FP}', $serviceJwtFp)
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_SERVICE_JWT_FP}', $kServiceJwtFp)
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_GRANT_FP}', $kGrantFp)
+    $summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_SUBJECT}', $oidcSignCert["Subject"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_SERIAL}', $oidcSignCert["Serial"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{OIDC_SIGN_FP}', $oidcSignCert["Fingerprint"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_SUBJECT}', $oidcEncCert["Subject"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_SERIAL}', $oidcEncCert["Serial"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{OIDC_ENC_FP}', $oidcEncCert["Fingerprint"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_DP_SUBJECT}', $kDpCert["Subject"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_DP_SERIAL}', $kDpCert["Serial"])
+    $summaryMarkdown = $summaryMarkdown.Replace('{K_DP_FP}', $kDpCert["Fingerprint"])
 
-Write-Utf8NoBom -Path (Join-Path $BackupDirectory "CREDENTIALS_SUMMARY.md") -Value $summaryMarkdown
-Write-Output "Deployment secrets are ready in $SecretsDirectory, copied to $RuntimeSecretsDirectory, and backed up to $BackupDirectory (including CREDENTIALS_SUMMARY.md)."
+    Write-Utf8NoBom -Path $plaintextSummaryPath -Value $summaryMarkdown
+    Write-Output "Wrote PLAINTEXT summary (opt-in only): $plaintextSummaryPath"
+}
+
+Write-Output "Deployment secrets are ready in $SecretsDirectory, mirrored to $RuntimeSecretsDirectory and $BackupDirectory."
+Write-Output "Default inventory (no raw secrets): $inventoryPath"
+if ($Rotate) {
+    Write-Warning "Secrets were rotated. Redeploy services and invalidate any previously shared credential dumps."
+}
