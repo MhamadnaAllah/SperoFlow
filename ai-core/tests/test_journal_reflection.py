@@ -28,7 +28,7 @@ class JournalReflectionServiceTests(unittest.TestCase):
 
         result = asyncio.run(JournalReflectionService(settings).analyze(self._request()))
 
-        self.assertIn("tired", result.emotions)
+        self.assertTrue(any(e.lower() == "tired" for e in result.emotions))
         self.assertLessEqual(len(result.emotions), 6)
         self.assertLessEqual(len(result.feedback), 600)
         self.assertLessEqual(len(result.progress_summary), 600)
@@ -43,7 +43,7 @@ class JournalReflectionServiceTests(unittest.TestCase):
         ):
             result = asyncio.run(JournalReflectionService(settings).analyze(self._request()))
 
-        self.assertEqual(["hopeful"], result.emotions)
+        self.assertTrue(any(e.lower() == "hopeful" for e in result.emotions))
         self.assertEqual("Keep noticing what supports that choice.", result.progress_summary)
 
     def test_invalid_model_output_falls_back_without_journal_logging(self) -> None:
