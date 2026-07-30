@@ -10,20 +10,27 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
-from langchain_huggingface import HuggingFaceEmbeddings
 from speroflow_ai.config import get_settings
 
 logger = logging.getLogger("speroflow.services.embedding")
 
-_hf_embeddings: Optional[HuggingFaceEmbeddings] = None
+_hf_embeddings: Optional[Any] = None
 
 
-def _get_hf_embedder(model_name: str = "BAAI/bge-m3") -> HuggingFaceEmbeddings:
+def _get_hf_embedder(model_name: str = "BAAI/bge-m3") -> Any:
     """Lazily initialize and cache the HuggingFace local embedding model."""
     global _hf_embeddings
     if _hf_embeddings is None:
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+        except ImportError as exc:
+            raise RuntimeError(
+                "langchain-huggingface is required for local embeddings. "
+                "Install the ai-api requirements."
+            ) from exc
+
         logger.info("Loading local embedding model: %s", model_name)
         _hf_embeddings = HuggingFaceEmbeddings(
             model_name=model_name,
