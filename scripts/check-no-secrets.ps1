@@ -53,7 +53,7 @@ function Get-ScanTargets {
 }
 
 $targets = Get-ScanTargets |
-    ForEach-Object { $_ -replace '\\', '/' } |
+    ForEach-Object { ($_ -replace '\\', '/').TrimStart('/') -replace '^\./', '' } |
     Where-Object {
         $_ -and
         ($_ -notmatch $excludePathRegex) -and
