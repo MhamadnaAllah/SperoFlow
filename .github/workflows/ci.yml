@@ -20,15 +20,15 @@ jobs:
           fetch-depth: 0
       - name: Scan tracked files for secret patterns
         shell: pwsh
-        run: ./scripts/check-no-secrets.ps1
+        run: pwsh -File ./scripts/check-no-secrets.ps1
       - name: Secrets catalog vs Compose
         shell: pwsh
-        run: ./scripts/validate-secrets-catalog.ps1
+        run: pwsh -File ./scripts/validate-secrets-catalog.ps1
       - name: Managed secrets push/pull dry-run
         shell: pwsh
         run: |
-          ./scripts/aws-secrets-push.ps1 -Environment prod -Region us-east-1 -DryRun
-          ./scripts/aws-secrets-pull.ps1 -Environment prod -Region us-east-1 -DryRun
+          pwsh -File ./scripts/aws-secrets-push.ps1 -Environment prod -Region us-east-1 -DryRun
+          pwsh -File ./scripts/aws-secrets-pull.ps1 -Environment prod -Region us-east-1 -DryRun
       - name: Validate secrets CloudFormation template
         run: |
           python - <<'PY'
@@ -138,7 +138,7 @@ jobs:
       - name: Install lightweight test deps
         run: |
           python -m pip install --upgrade pip
-          pip install "pydantic>=2.9.0" "pydantic-settings>=2.6.0" "PyJWT[crypto]>=2.10.0" "httpx>=0.27.0" "cryptography>=43.0.0" "fastapi>=0.115.0" "neo4j>=5.25.0" pytest
+          pip install "setuptools>=75" "pydantic>=2.9.0" "pydantic-settings>=2.6.0" "PyJWT[crypto]>=2.10.0" "httpx>=0.27.0" "cryptography>=43.0.0" "fastapi>=0.115.0" "neo4j>=5.25.0" pytest
           pip install -e ai-core
       - name: Run offline-friendly AI tests
         working-directory: ai-core
