@@ -52,14 +52,13 @@ function Get-ScanTargets {
     return @(git ls-files)
 }
 
-$targets = Get-ScanTargets | Where-Object {
-    $_ -and
-    ($_ -notmatch $excludePathRegex) -and
-    ($_ -notmatch $allowPathRegex)
-}
-
-# Normalize path separators for matching
-$targets = $targets | ForEach-Object { $_ -replace '\\', '/' }
+$targets = Get-ScanTargets |
+    ForEach-Object { $_ -replace '\\', '/' } |
+    Where-Object {
+        $_ -and
+        ($_ -notmatch $excludePathRegex) -and
+        ($_ -notmatch $allowPathRegex)
+    }
 
 $violations = New-Object System.Collections.Generic.List[string]
 
