@@ -113,15 +113,17 @@ Completed engineering hardening toward pilot readiness (not full public producti
 - CI: catalog sync + push/pull dry-run + CFN template parse; preflight includes the same gates.
 - SSM reserved for non-secret config examples only.
 
-### Observability + smoke (in tree)
+### Observability + Grafana & Alerting (in tree)
 - Prometheus text metrics on private `/metrics` for main API and AI API (Caddy blocks public access).
-- Optional `compose.monitoring.yaml` profile with Prometheus (localhost:9090 only).
+- Prometheus alert rules (`infrastructure/monitoring/alert.rules.yml`) for service availability, 5xx rates, and latency.
+- Optional `compose.monitoring.yaml` profile with Prometheus (localhost:9090) and Grafana (localhost:3000).
+- Auto-provisioned Grafana Prometheus datasource and pre-built "SperoFlow Overview" dashboard (`infrastructure/monitoring/grafana/`).
 - CloudWatch agent example config under `infrastructure/monitoring/`.
 - Dependency-light `scripts/e2e-smoke.mjs` (+ CI syntax job) for edge health/header checks.
 
 ### Playwright browser E2E (in tree)
-- `e2e/` package with mocked API + Next rewrites (`API_PROXY_TARGET`) for login, CSRF header, proposal approve.
+- `e2e/` package with mocked API + Next runtime middleware (`frontend/src/middleware.js`) for login, CSRF header, proposal approve.
 - Live project when `E2E_BASE_URL` + credentials are set.
-- CI job `playwright-e2e-mocked` runs Chromium against mock stack.
+- CI job `playwright-e2e-mocked` runs Chromium against mock stack (100% passing).
 
-Still open before public production: HA/multi-AZ, **run CFN + first live push in the AWS account**, SM rotation Lambdas, ECS native secret injection, Grafana/alerting rules, knowledge legacy table retirement, live restore drills on real hosts, richer live Playwright coverage (full proposal lifecycle against real AI).
+Still open before public production: HA/multi-AZ, **run CFN + first live push in the AWS account**, SM rotation Lambdas, ECS native secret injection, knowledge legacy table retirement, live restore drills on real hosts, richer live Playwright coverage (full proposal lifecycle against real AI).

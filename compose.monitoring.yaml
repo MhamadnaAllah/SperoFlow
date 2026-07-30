@@ -4,7 +4,8 @@ name: speroflow
 # Usage:
 #   docker compose -f compose.yaml -f compose.prod.yaml -f compose.monitoring.yaml --profile monitoring up -d
 #
-# Prometheus UI (ops only): host port 9090. Do not expose this on a public security group.
+# Prometheus UI (ops only): host port 9090 (127.0.0.1:9090).
+# Grafana UI (ops only): host port 3000 (127.0.0.1:3000).
 
 services:
   prometheus:
@@ -18,6 +19,7 @@ services:
       - --web.enable-lifecycle
     volumes:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
@@ -34,5 +36,32 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_HTTP_PORT=3000
+    volumes:
+      - ./infrastructure/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./infrastructure/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infrastructure/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards/speroflow:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - private
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
 volumes:
   prometheus_data:
+  grafana_data:

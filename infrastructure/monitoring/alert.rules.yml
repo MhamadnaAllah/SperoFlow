@@ -1,0 +1,29 @@
+groups:
+  - name: speroflow-alerts
+    rules:
+      - alert: SperoFlowServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service instance {{ $labels.service }} is down"
+          description: "Target {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+      - alert: SperoFlowApiHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate on {{ $labels.service }}"
+          description: "HTTP 5xx error rate is above 5% over the last 5 minutes."
+
+      - alert: SperoFlowApiHighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 95th percentile latency on {{ $labels.service }}"
+          description: "95th percentile latency is exceeding 2 seconds over the last 5 minutes."

@@ -116,11 +116,13 @@ change only after explicit user acceptance.
 - ASP.NET and AI API emit `X-Request-Id` and structured request timing logs (health/metrics probes skipped).
 - Process-local Prometheus text at **private** `http://api:8080/metrics` and `http://ai-api:8000/metrics`.
   Caddy returns **404** for public `/metrics` on the app host.
-- Optional Prometheus:
+- Optional Prometheus + Grafana monitoring stack:
 
 ```powershell
 docker compose -f compose.yaml -f compose.prod.yaml -f compose.monitoring.yaml --profile monitoring up -d
-# UI bound to 127.0.0.1:9090 only — do not open in a public SG
+# Prometheus UI: 127.0.0.1:9090 (alert rules loaded from infrastructure/monitoring/alert.rules.yml)
+# Grafana UI:    127.0.0.1:3000 (login: admin / ${GRAFANA_ADMIN_PASSWORD:-admin})
+# Pre-provisioned dashboard: "SperoFlow Overview"
 ```
 
 - Production Compose sets `LOG_FORMAT=json` and rotates container json-file logs.
