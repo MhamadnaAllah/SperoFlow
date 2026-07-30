@@ -130,4 +130,8 @@ Completed engineering hardening toward pilot readiness (not full public producti
 - SQL migration script [`scripts/retire-legacy-knowledge-tables.sql`](scripts/retire-legacy-knowledge-tables.sql) to safely drop legacy main-stack knowledge tables (`app.dataset_ingestion_jobs`, `app.knowledge_source_files`, `app.knowledge_datasets`).
 - PowerShell helper [`scripts/retire-legacy-knowledge-tables.ps1`](scripts/retire-legacy-knowledge-tables.ps1) with dry-run mode and `-ConfirmRetirement` safety latch.
 
+### Backup Retention & Disaster Recovery Tooling (in tree)
+- Backup rotation helper [`scripts/rotate-backups.ps1`](scripts/rotate-backups.ps1) with configurable retention threshold and `-ConfirmPurge` safety latch.
+- AWS production infrastructure & managed secrets deployment guide [`infrastructure/aws/DEPLOYMENT_GUIDE.md`](infrastructure/aws/DEPLOYMENT_GUIDE.md).
+
 Still open before public production: HA/multi-AZ, **run CFN + first live push in the AWS account**, SM rotation Lambdas, ECS native secret injection, live restore drills on real hosts, richer live Playwright coverage (full proposal lifecycle against real AI).

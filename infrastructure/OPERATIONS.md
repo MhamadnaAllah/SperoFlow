@@ -110,6 +110,18 @@ powershell -ExecutionPolicy Bypass -File scripts/restore-postgres.ps1 `
 3. Restore Neo4j / MinIO from their dump or volume archives on a non-production host first.
 4. Run `scripts/stack-status.ps1` and `scripts/smoke-release.ps1`, then auth/GraphRAG smoke before cutting traffic back.
 
+### Backup Retention & Rotation
+
+Purge expired local backups according to operational retention policy (default 7 days):
+
+```powershell
+# Dry-run check for backups older than 7 days:
+powershell -ExecutionPolicy Bypass -File scripts/rotate-backups.ps1 -RetentionDays 7
+
+# Execute purge on host:
+powershell -ExecutionPolicy Bypass -File scripts/rotate-backups.ps1 -RetentionDays 7 -ConfirmPurge
+```
+
 ### Request correlation
 
 Edge Caddy forwards `X-Request-Id` / `X-Correlation-ID` to API services. The main

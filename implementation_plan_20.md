@@ -20,6 +20,8 @@ All core production hardening phases initiated across previous sessions have bee
 | **Browser E2E Suite (Playwright)** | **COMPLETED** | All **5 Playwright tests passed** (`npm run test:mocked`) covering Login, CSRF token headers, and AI Proposals approval. |
 | **Grafana & Prometheus Alerting** | **COMPLETED** | Auto-provisioned Grafana (localhost:3000), pre-built "SperoFlow Overview" dashboard, and `alert.rules.yml` for 5xx errors & latency. |
 | **Knowledge Base Legacy Cutover** | **COMPLETED** | Added `retire-legacy-knowledge-tables.sql` and `retire-legacy-knowledge-tables.ps1` helper with dry-run & `-ConfirmRetirement` latch. |
+| **Backup Rotation & Retention** | **COMPLETED** | Added `rotate-backups.ps1` helper with configurable retention days and `-ConfirmPurge` safety latch. |
+| **AWS Deployment Guide** | **COMPLETED** | Added [`DEPLOYMENT_GUIDE.md`](infrastructure/aws/DEPLOYMENT_GUIDE.md) detailing CloudFormation deploy, KMS, Secrets Manager push, & systemd unit setup. |
 
 ---
 
