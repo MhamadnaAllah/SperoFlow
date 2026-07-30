@@ -20,15 +20,15 @@ jobs:
           fetch-depth: 0
       - name: Scan tracked files for secret patterns
         shell: pwsh
-        run: pwsh -File ./scripts/check-no-secrets.ps1
+        run: ./scripts/check-no-secrets.ps1
       - name: Secrets catalog vs Compose
         shell: pwsh
-        run: pwsh -File ./scripts/validate-secrets-catalog.ps1
+        run: ./scripts/validate-secrets-catalog.ps1
       - name: Managed secrets push/pull dry-run
         shell: pwsh
         run: |
-          pwsh -File ./scripts/aws-secrets-push.ps1 -Environment prod -Region us-east-1 -DryRun
-          pwsh -File ./scripts/aws-secrets-pull.ps1 -Environment prod -Region us-east-1 -DryRun
+          ./scripts/aws-secrets-push.ps1 -Environment prod -Region us-east-1 -DryRun
+          ./scripts/aws-secrets-pull.ps1 -Environment prod -Region us-east-1 -DryRun
       - name: Validate secrets CloudFormation template
         run: |
           python - <<'PY'
