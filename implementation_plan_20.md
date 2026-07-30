@@ -16,8 +16,9 @@ All core production hardening phases initiated across previous sessions have bee
 | **CI Automation** | **COMPLETED** | `.github/workflows/ci.yml` validates Compose stacks, builds API, runs domain/AI/knowledge tests, and runs security scans. |
 | **API Entrypoint Unification** | **COMPLETED** | Dead `ProgramRuntime.cs` files removed. Single `Program.cs` (.NET 10) with JSON logging, OIDC, and CSRF. |
 | **Managed Secrets (AWS SM/SSM)** | **COMPLETED** | Scaffolding complete: `secrets-catalog.json` (27 secrets), push/pull/sync scripts, CloudFormation KMS stack. |
-| **Observability & Metrics** | **COMPLETED** | `RequestMetrics` Prometheus exporter (`/metrics`), correlation ID propagation, `compose.monitoring.yaml`. |
+| **Observability & Metrics** | **COMPLETED** | `RequestMetrics` Prometheus exporter (`/metrics`), correlation ID propagation, `compose.monitoring.yaml`, Grafana dashboard, & Prometheus alert rules. |
 | **Browser E2E Suite (Playwright)** | **COMPLETED** | All **5 Playwright tests passed** (`npm run test:mocked`) covering Login, CSRF token headers, and AI Proposals approval. |
+| **Grafana & Prometheus Alerting** | **COMPLETED** | Auto-provisioned Grafana (localhost:3000), pre-built "SperoFlow Overview" dashboard, and `alert.rules.yml` for 5xx errors & latency. |
 
 ---
 
