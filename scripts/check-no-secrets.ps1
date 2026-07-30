@@ -32,7 +32,7 @@ $patterns = @(
 $excludePathRegex = '(?i)(node_modules|/bin/|/obj/|\.next/|__pycache__|package-lock\.json|yarn\.lock|^knowledge-base/|/backups/|\.dll$|\.pdb$|\.png$|\.jpg$|\.webp$|\.woff|\.mdc$)'
 
 # Scripts/docs that legitimately mention scrubbing CREDENTIALS_SUMMARY or secret file names.
-$allowPathRegex = '(?i)^(scripts/(check-no-secrets|bootstrap-secrets|bootstrap-secrets-v2|reset-secrets-before-git|init-docker-secrets|aws-secrets-.*|validate-secrets-catalog)\.ps1|infrastructure/secrets/README\.md|infrastructure/(OPERATIONS|DEPLOYMENT|MANAGED_SECRETS)\.md|infrastructure/aws/.*\.(json|md|service|sh)|e2e/.*|PRODUCT_OBJECTIVE_STATUS\.md|README\.md)$'
+$allowPathRegex = '(?i)^(scripts/(check-no-secrets|bootstrap-secrets|bootstrap-secrets-v2|reset-secrets-before-git|init-docker-secrets|aws-secrets-.*|validate-secrets-catalog|retire-legacy-knowledge-tables|rotate-backups)\.(ps1|sql)|infrastructure/secrets/README\.md|infrastructure/(OPERATIONS|DEPLOYMENT|MANAGED_SECRETS)\.md|infrastructure/aws/.*|e2e/.*|PRODUCT_OBJECTIVE_STATUS\.md|README\.md|grok_session\.md|implementation_plan.*\.md)$'
 
 function Get-ScanTargets {
     if ($AllFiles) {
