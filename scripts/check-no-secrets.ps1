@@ -94,6 +94,7 @@ foreach ($rel in $targets) {
     foreach ($pattern in $testPatterns) {
         if ($content -match $pattern.Regex) {
             $violations.Add("$($pattern.Name): $rel")
+            Write-Host "FAILED: Secret pattern matched [$($pattern.Name)] in file: $rel" -ForegroundColor Red
         }
     }
 }
