@@ -29,10 +29,10 @@ $patterns = @(
 )
 
 # Large curated corpora, build artifacts, locks, and media are out of scope.
-$excludePathRegex = '(?i)(node_modules|/bin/|/obj/|\.next/|__pycache__|package-lock\.json|yarn\.lock|^knowledge-base/|/backups/|^infrastructure/secrets/|^secrets/|^secrets_backup/|^\.agents/|^\.tempmediaStorage/|\.(dll|pdb|png|jpg|jpeg|gif|ico|webp|woff2?|eot|ttf|pdf|exe|so|dylib|pyc)$)'
+$excludePathRegex = '(?i)(node_modules|/bin/|/obj/|\.next/|__pycache__|package-lock\.json|yarn\.lock|(^|/)knowledge-base/|/backups/|(^|/)infrastructure/secrets/|(^|/)secrets/|(^|/)secrets_backup/|(^|/)\.agents/|(^|/)\.tempmediaStorage/|\.(dll|pdb|png|jpg|jpeg|gif|ico|webp|woff2?|eot|ttf|pdf|exe|so|dylib|pyc)$)'
 
 # Scripts/docs that legitimately mention scrubbing CREDENTIALS_SUMMARY or secret file names.
-$allowPathRegex = '(?i)^(\.github/.*|scripts/(check-no-secrets|bootstrap-secrets|bootstrap-secrets-v2|reset-secrets-before-git|init-docker-secrets|aws-secrets-.*|validate-secrets-catalog|retire-legacy-knowledge-tables|rotate-backups)\.(ps1|sql)|infrastructure/secrets/README\.md|infrastructure/(OPERATIONS|DEPLOYMENT|MANAGED_SECRETS)\.md|infrastructure/aws/.*|e2e/.*|PRODUCT_OBJECTIVE_STATUS\.md|README\.md|grok_session.*\.md|implementation_plan.*\.md)$'
+$allowPathRegex = '(?i)(^|/)(\.github/.*|scripts/(check-no-secrets|bootstrap-secrets|bootstrap-secrets-v2|reset-secrets-before-git|init-docker-secrets|aws-secrets-.*|validate-secrets-catalog|retire-legacy-knowledge-tables|rotate-backups)\.(ps1|sql)|infrastructure/secrets/README\.md|infrastructure/(OPERATIONS|DEPLOYMENT|MANAGED_SECRETS)\.md|infrastructure/aws/.*|e2e/.*|PRODUCT_OBJECTIVE_STATUS\.md|README\.md|grok_session.*\.md|implementation_plan.*\.md|aws_quarantine_remediation\.md)$'
 
 function Get-ScanTargets {
     if ($AllFiles) {
