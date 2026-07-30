@@ -22,6 +22,18 @@ Do not add graph ingestion to the AI API, main AI worker startup, or a browser
 path. The dedicated knowledge worker is the only graph writer. Neo4j remains
 derived data and every production rebuild must flow through a validated release.
 
+### Legacy Knowledge Table Retirement
+
+After verifying Knowledge Platform dataset ingestion and access grant workflows, retire the legacy main-stack knowledge tables (`app.dataset_ingestion_jobs`, `app.knowledge_source_files`, `app.knowledge_datasets`):
+
+```powershell
+# Dry-run check:
+powershell -ExecutionPolicy Bypass -File scripts/retire-legacy-knowledge-tables.ps1
+
+# Execute retirement on host PostgreSQL:
+powershell -ExecutionPolicy Bypass -File scripts/retire-legacy-knowledge-tables.ps1 -ConfirmRetirement
+```
+
 ## Secrets
 
 ### Managed (AWS Secrets Manager) — preferred for pilot/production

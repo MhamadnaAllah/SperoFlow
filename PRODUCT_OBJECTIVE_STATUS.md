@@ -126,4 +126,8 @@ Completed engineering hardening toward pilot readiness (not full public producti
 - Live project when `E2E_BASE_URL` + credentials are set.
 - CI job `playwright-e2e-mocked` runs Chromium against mock stack (100% passing).
 
-Still open before public production: HA/multi-AZ, **run CFN + first live push in the AWS account**, SM rotation Lambdas, ECS native secret injection, knowledge legacy table retirement, live restore drills on real hosts, richer live Playwright coverage (full proposal lifecycle against real AI).
+### Knowledge Base Legacy Cutover Tooling (in tree)
+- SQL migration script [`scripts/retire-legacy-knowledge-tables.sql`](scripts/retire-legacy-knowledge-tables.sql) to safely drop legacy main-stack knowledge tables (`app.dataset_ingestion_jobs`, `app.knowledge_source_files`, `app.knowledge_datasets`).
+- PowerShell helper [`scripts/retire-legacy-knowledge-tables.ps1`](scripts/retire-legacy-knowledge-tables.ps1) with dry-run mode and `-ConfirmRetirement` safety latch.
+
+Still open before public production: HA/multi-AZ, **run CFN + first live push in the AWS account**, SM rotation Lambdas, ECS native secret injection, live restore drills on real hosts, richer live Playwright coverage (full proposal lifecycle against real AI).
