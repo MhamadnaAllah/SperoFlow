@@ -7,6 +7,11 @@ COPY backend/src/SperoFlow.Contracts/SperoFlow.Contracts.csproj backend/src/Sper
 COPY backend/src/SperoFlow.Application/SperoFlow.Application.csproj backend/src/SperoFlow.Application/
 COPY backend/src/SperoFlow.Infrastructure/SperoFlow.Infrastructure.csproj backend/src/SperoFlow.Infrastructure/
 COPY backend/src/SperoFlow.Api/SperoFlow.Api.csproj backend/src/SperoFlow.Api/
+# Nested Directory.Build.props add package/framework references (e.g.
+# Microsoft.Extensions.Http.Resilience on Infrastructure); they must be present
+# before restore or NuGet resolves an incomplete package graph.
+COPY backend/src/SperoFlow.Infrastructure/Directory.Build.props backend/src/SperoFlow.Infrastructure/
+COPY backend/src/SperoFlow.Api/Directory.Build.props backend/src/SperoFlow.Api/
 RUN dotnet restore backend/src/SperoFlow.Api/SperoFlow.Api.csproj
 
 COPY backend/ backend/
