@@ -87,6 +87,17 @@ foreach ($entry in $catalog.secrets) {
     $encoding = Get-SecretEncoding -CatalogEntry $entry
     $optional = [bool]$entry.optional
 
+    if ($DryRun) {
+        # Dry-run validates the catalog only; it must not require the real
+        # (git-ignored) secret files to exist on the runner.
+        if (-not (Test-Path -LiteralPath $localPath)) {
+            Write-Host "DRY-RUN would upsert $secretId ($encoding) [local file not present]" -ForegroundColor DarkCyan
+            continue
+        }
+        Write-Host "DRY-RUN would upsert $secretId ($encoding)" -ForegroundColor DarkCyan
+        continue
+    }
+
     if (-not (Test-Path -LiteralPath $localPath)) {
         if ($optional -or $SkipOptionalMissing) {
             Write-Host "SKIP missing optional: $name" -ForegroundColor DarkYellow
@@ -106,11 +117,6 @@ foreach ($entry in $catalog.secrets) {
             }
             throw "Required secret file is empty: $localPath"
         }
-    }
-
-    if ($DryRun) {
-        Write-Host "DRY-RUN would upsert $secretId ($encoding)" -ForegroundColor DarkCyan
-        continue
     }
 
     $exists = Test-SecretExists -SecretId $secretId -AwsRegion $Region
