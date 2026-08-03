@@ -1,7 +1,10 @@
 FROM node:22.15-alpine AS dependencies
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+# The lock file is generated on Windows and omits Linux-only optional deps
+# (sharp/@img/*, @emnapi/*) that Next.js image optimization needs on Alpine.
+# npm install resolves the correct platform binaries for this build OS.
+RUN npm install --no-audit --no-fund
 
 FROM node:22.15-alpine AS build
 WORKDIR /app
