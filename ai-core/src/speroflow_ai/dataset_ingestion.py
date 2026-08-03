@@ -280,6 +280,52 @@ def _iter_docx_segments(path: Path) -> Iterator[tuple[int | None, str]]:
     yield None, "\n\n".join(paragraphs)
 
 
+def _baidu_paddle_ocr_extract(path: Path) -> list[tuple[int, str]]:
+    """Extract text from scanned PDFs or images using Baidu PaddleOCR (unlimited, local)."""
+    pages: list[tuple[int, str]] = []
+    try:
+        from paddleocr import PaddleOCR  # type: ignore[import-not-found]
+        import fitz  # type: ignore[import-not-found]  # PyMuPDF
+
+        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        doc = fitz.open(str(path))
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            pix = page.get_pixmap()
+            img_bytes = pix.tobytes("png")
+            result = ocr.ocr(img_bytes, cls=True)
+            page_text_lines = []
+            if result and result[0]:
+                for line in result[0]:
+                    if line and len(line) >= 2 and line[1]:
+                        text_str = str(line[1][0]).strip()
+                        if text_str:
+                            page_text_lines.append(text_str)
+            extracted_text = " ".join(page_text_lines).strip()
+            if extracted_text:
+                pages.append((page_num + 1, extracted_text))
+        if pages:
+            logger.info("Baidu PaddleOCR extracted %d pages from %s.", len(pages), path.name)
+            return pages
+    except Exception as exc:
+        logger.warning("Baidu PaddleOCR engine unavailable or encountered error: %s. Falling back.", exc)
+
+    # Secondary PyMuPDF text rendering fallback
+    try:
+        import fitz  # type: ignore[import-not-found]
+        doc = fitz.open(str(path))
+        for page_num in range(len(doc)):
+            text = doc[page_num].get_text().strip()
+            if text:
+                pages.append((page_num + 1, text))
+        if pages:
+            return pages
+    except Exception:
+        pass
+
+    return pages
+
+
 def _iter_pdf_segments(path: Path, native_text_threshold: int = 80) -> Iterator[tuple[int | None, str]]:
     try:
         from pypdf import PdfReader  # type: ignore[import-not-found]
@@ -294,7 +340,12 @@ def _iter_pdf_segments(path: Path, native_text_threshold: int = 80) -> Iterator[
         if text:
             pages.append((index, text))
     if total_text < native_text_threshold:
-        raise OcrRequired("The PDF has insufficient native text and requires Textract OCR.")
+        logger.info("PDF has insufficient native text (%d chars). Running Baidu PaddleOCR...", total_text)
+        ocr_pages = _baidu_paddle_ocr_extract(path)
+        if ocr_pages:
+            yield from ocr_pages
+            return
+        raise OcrRequired("The PDF has insufficient native text and Baidu OCR could not extract readable content.")
     yield from pages
 
 
