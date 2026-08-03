@@ -13,11 +13,12 @@ COPY backend/ backend/
 RUN dotnet publish backend/src/SperoFlow.Api/SperoFlow.Api.csproj --configuration Release --output /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# The .NET 10 aspnet base image already provides a non-root 'app' user/group,
+# so we only install curl here (no duplicate groupadd/useradd, which would fail
+# with "group 'app' already exists").
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 app \
-    && useradd --uid 10001 --gid app --create-home --shell /usr/sbin/nologin app
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=app:app /app/publish/ ./
 COPY infrastructure/docker/entrypoint-dotnet.sh /entrypoint.sh
