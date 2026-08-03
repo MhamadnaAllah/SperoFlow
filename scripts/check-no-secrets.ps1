@@ -68,7 +68,11 @@ foreach ($rel in $targets) {
         continue
     }
 
-    $info = Get-Item -LiteralPath $path
+    try {
+        $info = Get-Item -LiteralPath $path -ErrorAction Stop
+    } catch {
+        continue
+    }
     if ($info.Length -gt 1MB) {
         continue
     }

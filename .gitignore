@@ -58,3 +58,4 @@ Thumbs.db
 
 # Local backup artifacts (scripts/backup-volumes.ps1)
 /backups/
+*.egg-info/

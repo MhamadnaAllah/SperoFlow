@@ -121,7 +121,10 @@ class CBTParser:
             source_bytes = source_path.read_bytes()
             content = source_bytes.decode("utf-8").strip()
             expected_hash = self._require_string(raw, "source_sha256", f"document {index}")
-            actual_hash = hashlib.sha256(source_bytes).hexdigest()
+            # Normalize CRLF -> LF before hashing so the integrity check is
+            # stable across Windows (autocrlf) and Linux checkouts of the KB.
+            canonical_bytes = source_bytes.decode("utf-8").replace("\r\n", "\n").encode("utf-8")
+            actual_hash = hashlib.sha256(canonical_bytes).hexdigest()
             if actual_hash != expected_hash:
                 raise ValueError(
                     f"source hash mismatch for '{source_relpath}'. Rebuild the CBT manifest before ingestion."
