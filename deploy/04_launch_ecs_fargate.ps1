@@ -8,13 +8,11 @@ $PREFIX = "/speroflow/prod"
 
 Write-Host "==> 1. Storing Production Secrets into AWS SSM Parameter Store..." -ForegroundColor Cyan
 
+# Non-secret configuration can stay inline.
 $ssmParameters = @{
     "$PREFIX/POSTGRES_USER" = "speroflow_app"
     "$PREFIX/POSTGRES_DB" = "speroflow"
-    "$PREFIX/POSTGRES_PASSWORD" = "speroflow_secure_prod_db_pass_2026"
-    "$PREFIX/REDIS_PASSWORD" = "speroflow_secure_redis_pass_2026"
     "$PREFIX/NEO4J_USER" = "neo4j"
-    "$PREFIX/NEO4J_PASSWORD" = "speroflow_secure_neo4j_pass_2026"
     "$PREFIX/SERVICE_JWT_ISSUER" = "SperoFlow.Api"
     "$PREFIX/SERVICE_JWT_AUDIENCE" = "speroflow-ai-api"
     "$PREFIX/BEDROCK_REGION" = "us-east-1"
@@ -22,10 +20,32 @@ $ssmParameters = @{
     "$PREFIX/EMBEDDING_MODEL_ID" = "cohere.embed-v4:0"
 }
 
+# Secret values are pulled at runtime from AWS Secrets Manager (strong random
+# values pushed by scripts/aws-secrets-push.ps1) instead of being hardcoded
+# here in plaintext. This keeps secrets out of source control.
+function Get-SmValue {
+    param([Parameter(Mandatory = $true)][string]$SecretId)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $v = & aws secretsmanager get-secret-value --secret-id $SecretId --region $AWS_REGION --query SecretString --output text 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    if ($code -ne 0) { throw "Failed to read secret $SecretId from Secrets Manager: $v" }
+    return ($v -join "").Trim()
+}
+
+$ssmParameters["$PREFIX/POSTGRES_PASSWORD"] = Get-SmValue "speroflow/prod/postgres_password"
+$ssmParameters["$PREFIX/REDIS_PASSWORD"] = Get-SmValue "speroflow/prod/redis_password"
+$ssmParameters["$PREFIX/NEO4J_PASSWORD"] = Get-SmValue "speroflow/prod/neo4j_password"
+
 foreach ($key in $ssmParameters.Keys) {
     $val = $ssmParameters[$key]
     Write-Host "   - Putting Parameter '$key'..." -ForegroundColor Yellow
     aws ssm put-parameter --name $key --value $val --type "SecureString" --overwrite --region $AWS_REGION
+    if ($LASTEXITCODE -ne 0) { throw "Failed to put SSM parameter $key" }
 }
 
 Write-Host "==> 2. Creating Production Caddyfile for automatic HTTPS on speroflow.space..." -ForegroundColor Cyan
