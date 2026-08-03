@@ -61,16 +61,37 @@ if (-not $Region) {
 
 function Invoke-Aws {
     param([Parameter(Mandatory = $true)][string[]]$AwsArgs)
-    & aws @AwsArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "AWS CLI failed: aws $($AwsArgs -join ' ')"
+    # PS 5.1 promotes native stderr to a terminating NativeCommandError under
+    # $ErrorActionPreference = "Stop"; drop to Continue around the call so the
+    # AWS CLI's own exit code is the single source of truth.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & aws @AwsArgs 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
     }
+    if ($code -ne 0) {
+        throw "AWS CLI failed: aws $($AwsArgs -join ' ')`n$output"
+    }
+    return $output
 }
 
 function Test-SecretExists {
     param([string]$SecretId, [string]$AwsRegion)
-    aws secretsmanager describe-secret --secret-id $SecretId --region $AwsRegion 2>$null | Out-Null
-    return ($LASTEXITCODE -eq 0)
+    # A missing secret makes describe-secret exit non-zero and write
+    # ResourceNotFoundException to stderr; keep that non-terminating so the
+    # existence check simply returns $false.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $null = & aws secretsmanager describe-secret --secret-id $SecretId --region $AwsRegion 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    return ($code -eq 0)
 }
 
 $catalog = Get-SperoFlowSecretsCatalog -Root $root
