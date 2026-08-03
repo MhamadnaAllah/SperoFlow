@@ -1,0 +1,4 @@
+﻿ns-493.awsdns-61.com
+ns-1832.awsdns-37.co.uk
+ns-742.awsdns-28.net
+ns-1150.awsdns-15.org

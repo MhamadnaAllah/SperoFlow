@@ -1,0 +1,2 @@
+﻿PublicIp: 100.59.55.87
+AllocationId: eipalloc-0e9b42cf2e6226fc9

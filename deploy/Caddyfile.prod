@@ -1,0 +1,15 @@
+﻿{
+    email mhamadnaallah@gmail.com
+}
+
+speroflow.space, app.speroflow.space {
+    reverse_proxy web:3000
+}
+
+api.speroflow.space {
+    reverse_proxy api:8080
+}
+
+ai.speroflow.space {
+    reverse_proxy ai-api:8000
+}

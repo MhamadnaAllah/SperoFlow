@@ -1,0 +1,43 @@
+name: AWS Production CI/CD Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy to AWS Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Docker Images to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/speroflow/web:latest -f infrastructure/docker/web.Dockerfile .
+          docker push $ECR_REGISTRY/speroflow/web:latest
+
+          docker build -t $ECR_REGISTRY/speroflow/api:latest -f infrastructure/docker/api.Dockerfile .
+          docker push $ECR_REGISTRY/speroflow/api:latest
+
+          docker build -t $ECR_REGISTRY/speroflow/ai-api:latest -f ai-api/Dockerfile .
+          docker push $ECR_REGISTRY/speroflow/ai-api:latest
+
+      - name: Verify AWS SSM Parameter Store Secrets
+        run: |
+          aws ssm get-parameter --name "/speroflow/prod/SERVICE_JWT_ISSUER" --with-decryption
