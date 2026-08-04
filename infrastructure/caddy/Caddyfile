@@ -6,7 +6,8 @@
     }
 }
 
-{$APP_DOMAIN:app.example.com} {
+# Main application + API (same-origin so first-party cookies & CSRF work).
+{$APP_DOMAIN:app.example.com}, app.{$APP_DOMAIN:app.example.com} {
     encode zstd gzip
 
     header {
@@ -20,10 +21,10 @@
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    # Metrics stay on the private Docker network only (Prometheus scrapes api:8080).
     @metrics path /metrics /metrics/*
     respond @metrics "Not found" 404
 
+    # API, OIDC endpoints, and health probes -> ASP.NET Core API.
     @api path /api/* /connect/* /.well-known/* /health/live /health/ready
     handle @api {
         reverse_proxy api:8080 {
@@ -33,12 +34,12 @@
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Host {host}
             header_up X-Forwarded-Proto {scheme}
-            # Forward client correlation id when present; API generates one if absent.
             header_up X-Request-Id {http.request.header.X-Request-Id}
             header_up X-Correlation-ID {http.request.header.X-Correlation-ID}
         }
     }
 
+    # Everything else -> Next.js web.
     handle {
         reverse_proxy web:3000 {
             header_up X-Request-Id {http.request.header.X-Request-Id}
@@ -46,6 +47,27 @@
     }
 }
 
+# Direct API host (kept for integrations / health checks).
+api.{$APP_DOMAIN:app.example.com} {
+    encode zstd gzip
+    reverse_proxy api:8080 {
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Request-Id {http.request.header.X-Request-Id}
+    }
+}
+
+# AI gateway (FastAPI).
+ai.{$APP_DOMAIN:app.example.com} {
+    encode zstd gzip
+    reverse_proxy ai-api:8000 {
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Request-Id {http.request.header.X-Request-Id}
+    }
+}
+
+# Knowledge platform portal (admin / monitoring).
 {$KNOWLEDGE_DOMAIN:knowledge.example.com} {
     encode zstd gzip
 
@@ -60,7 +82,6 @@
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    # Container probes reach knowledge-api directly. Do not expose platform health data on the private portal host.
     @knowledge_health path /health/*
     respond @knowledge_health "Not found" 404
 
@@ -81,7 +102,6 @@
     @knowledge_object_store path /speroflow-knowledge/*
     handle @knowledge_object_store {
         reverse_proxy knowledge-object-storage:9000 {
-            # Preserve the public Host header because it is part of the S3 SigV4 presigned request.
             header_up Host {http.request.host}
         }
     }
