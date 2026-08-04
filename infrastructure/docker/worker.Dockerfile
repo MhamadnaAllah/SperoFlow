@@ -13,7 +13,8 @@ RUN dotnet restore backend/src/SperoFlow.Worker/SperoFlow.Worker.csproj
 COPY backend/ backend/
 RUN dotnet publish backend/src/SperoFlow.Worker/SperoFlow.Worker.csproj --configuration Release --output /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+# Needs aspnet (not plain runtime): Infrastructure adds a FrameworkReference on Microsoft.AspNetCore.App.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # The .NET 10 base image already provides a non-root 'app' user/group.
 WORKDIR /app
 COPY --from=build --chown=app:app /app/publish/ ./

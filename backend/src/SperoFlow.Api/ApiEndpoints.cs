@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SperoFlow.Application;
@@ -736,7 +737,7 @@ public static partial class ApiEndpoints
                 return DomainValidationProblem(exception);
             }
         });
-        tasks.MapDelete("/{id:guid}", async (Guid id, ConcurrencyTokenRequest request, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken) =>
+        tasks.MapDelete("/{id:guid}", async (Guid id, [FromBody] ConcurrencyTokenRequest request, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken) =>
         {
             var task = await db.Tasks.SingleOrDefaultAsync(value => value.Id == id && value.OwnerId == currentUser.UserId, cancellationToken);
             if (task is null)
@@ -909,7 +910,7 @@ public static partial class ApiEndpoints
                 return DomainValidationProblem(exception);
             }
         });
-        habits.MapDelete("/{id:guid}", async (Guid id, ConcurrencyTokenRequest request, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken) =>
+        habits.MapDelete("/{id:guid}", async (Guid id, [FromBody] ConcurrencyTokenRequest request, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken) =>
         {
             var habit = await db.Habits.SingleOrDefaultAsync(value => value.Id == id && value.OwnerId == currentUser.UserId, cancellationToken);
             if (habit is null)
