@@ -95,7 +95,12 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Accounts__PublicWebOrigin: https://${APP_DOMAIN:-app.example.com}
-      Accounts__RequireConfirmedEmail: "true"
+      # Public signup for the main application. The admin/knowledge platform
+      # bootstrap stays gated behind the admin_bootstrap_token secret.
+      Accounts__AllowPublicRegistration: "true"
+      # Email confirmation requires SMTP; it is optional and only enforced when
+      # SMTP is fully provisioned. With SMTP unset, accounts are auto-confirmed.
+      Accounts__RequireConfirmedEmail: "${ACCOUNTS_REQUIRE_CONFIRMED_EMAIL:-false}"
       Smtp__Host:
       Smtp__Port: "587"
       Smtp__Username:

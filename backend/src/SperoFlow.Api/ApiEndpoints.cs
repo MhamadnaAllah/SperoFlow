@@ -234,12 +234,23 @@ public static partial class ApiEndpoints
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }
-        else if (bootstrapRegistration)
+        else
         {
-            var completionFailure = await CompleteBootstrapAsync(db, userManager, roleManager, user, cancellationToken);
-            if (completionFailure is not null)
+            // Email confirmation is not enforced (SMTP not provisioned). Confirm the
+            // account immediately so the user can sign in right away.
+            if (!user.EmailConfirmed)
             {
-                return completionFailure;
+                var confirmationToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+                await userManager.ConfirmEmailAsync(user, confirmationToken);
+            }
+
+            if (bootstrapRegistration)
+            {
+                var completionFailure = await CompleteBootstrapAsync(db, userManager, roleManager, user, cancellationToken);
+                if (completionFailure is not null)
+                {
+                    return completionFailure;
+                }
             }
         }
 
