@@ -42,7 +42,16 @@ async def claim_abandoned_messages(
 
 async def run() -> None:
     settings = AiWorkerSettings()
-    redis = Redis.from_url(settings.redis_url, decode_responses=False)
+    # socket_timeout must exceed the xreadgroup block=5s below, otherwise the
+    # blocking read is aborted with a TimeoutError before Redis replies.
+    redis = Redis.from_url(
+        settings.redis_url,
+        decode_responses=False,
+        socket_timeout=30.0,
+        socket_connect_timeout=10.0,
+        socket_keepalive=True,
+        health_check_interval=30,
+    )
     await ensure_group(redis, settings)
     timeout = httpx.Timeout(connect=5.0, read=120.0, write=30.0, pool=5.0)
     async with httpx.AsyncClient(base_url=settings.primary_api_url, timeout=timeout) as client:
