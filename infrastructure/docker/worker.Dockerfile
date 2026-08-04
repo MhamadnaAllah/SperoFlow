@@ -13,8 +13,7 @@ COPY backend/ backend/
 RUN dotnet publish backend/src/SperoFlow.Worker/SperoFlow.Worker.csproj --configuration Release --output /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
-RUN groupadd --gid 10001 app \
-    && useradd --uid 10001 --gid app --create-home --shell /usr/sbin/nologin app
+# The .NET 10 base image already provides a non-root 'app' user/group.
 WORKDIR /app
 COPY --from=build --chown=app:app /app/publish/ ./
 COPY infrastructure/docker/entrypoint-dotnet.sh /entrypoint.sh
