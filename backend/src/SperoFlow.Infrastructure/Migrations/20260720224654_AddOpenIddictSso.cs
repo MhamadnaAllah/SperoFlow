@@ -11,10 +11,12 @@ namespace SperoFlow.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_knowledge_source_files_DatasetId",
-                schema: "app",
-                table: "knowledge_source_files");
+            // Idempotent drop: the single-column index is redundant with the
+            // composite IX_knowledge_source_files_DatasetId_OwnerId_State, and on a
+            // fresh database the create/drop ordering can otherwise race. Use raw
+            // SQL with IF EXISTS so the migration is safe to run from scratch.
+            migrationBuilder.Sql(
+                "DROP INDEX IF EXISTS app.\"IX_knowledge_source_files_DatasetId\";");
 
             migrationBuilder.CreateTable(
                 name: "OpenIddictApplications",
