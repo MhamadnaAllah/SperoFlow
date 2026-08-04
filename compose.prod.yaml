@@ -98,6 +98,10 @@ services:
           memory: 1500M
 
   ai-api:
+    # The reverse proxy routes ai.speroflow.space -> ai-api:8000, so ai-api must
+    # also join the edge network (base compose only puts it on private/read bridges).
+    networks:
+      - edge
     environment:
       APP_ENV: production
       SERVICE_NAME: speroflow-ai-api
