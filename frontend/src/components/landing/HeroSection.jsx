@@ -19,18 +19,18 @@ export default function HeroSection() {
           <span className="text-xs font-medium tracking-wide text-secondary uppercase">AI Coach & Sanctuary</span>
         </div>
         
-        <h1 className="text-6xl md:text-7xl lg:text-8xl font-black tracking-tighter text-on-surface leading-[1.1] font-headline">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tighter text-on-surface leading-[1.1] font-headline">
           Master Your Mission. <br />
           <span className="text-primary">Find Your Peace.</span>
         </h1>
         
-        <p className="text-lg md:text-xl text-on-surface-variant max-w-2xl mx-auto leading-relaxed font-light">
+        <p className="text-base sm:text-lg md:text-xl text-on-surface-variant max-w-2xl mx-auto leading-relaxed font-light">
           Your AI Coach acts as both a ruthless strategist for your ambitions and a gentle supporter for your mental well-being. Achieve high performance without the burnout.
         </p>
         
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <div className="pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <button 
-            onClick={() => router.push("/auth")}
+            onClick={() => router.push("/signup")}
             className="group flex items-center justify-center gap-2 px-8 py-4 bg-on-background hover:bg-slate-800 text-white font-medium rounded-full shadow-lg transition-all"
           >
             Begin Your Journey

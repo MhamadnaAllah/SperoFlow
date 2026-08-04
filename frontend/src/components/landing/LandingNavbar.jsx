@@ -13,7 +13,7 @@ export default function LandingNavbar() {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-none shadow-sm flex items-center justify-between px-6 h-16 transition-all duration-200">
+    <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-none shadow-sm flex items-center justify-between px-6 h-16 transition-all duration-200">
       <div className="flex items-center gap-8">
         <span className="text-2xl font-bold tracking-tight text-on-surface">SperoFlow</span>
         <div className="hidden md:flex gap-6">
@@ -25,13 +25,13 @@ export default function LandingNavbar() {
       
       <div className="hidden md:flex items-center gap-4">
         <button 
-          onClick={() => handleNavigation('/auth')}
+          onClick={() => handleNavigation('/login')}
           className="text-on-surface-variant hover:text-primary transition-colors text-sm font-medium flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-[20px]">login</span> Sign In
         </button>
         <button 
-          onClick={() => handleNavigation('/auth')}
+          onClick={() => handleNavigation('/signup')}
           className="bg-primary text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-primary/90 transition-all flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-[20px]">person_add</span> Register
@@ -42,6 +42,9 @@ export default function LandingNavbar() {
       <button 
         className="md:hidden text-on-surface-variant hover:text-on-surface"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={mobileMenuOpen}
+        aria-controls="mobile-nav"
       >
         <span className="material-symbols-outlined text-2xl">
           {mobileMenuOpen ? 'close' : 'menu'}
@@ -50,7 +53,7 @@ export default function LandingNavbar() {
 
       {/* Mobile Nav Panel */}
       {mobileMenuOpen && (
-        <div className="absolute top-16 left-0 w-full bg-white/95 backdrop-blur-xl shadow-md border-t border-surface-container-highest md:hidden flex flex-col px-6 py-4 gap-4 mobile-nav-panel">
+        <div id="mobile-nav" className="absolute top-16 left-0 w-full bg-white/95 backdrop-blur-xl shadow-md border-t border-surface-container-highest md:hidden flex flex-col px-6 py-4 gap-4">
           <a className="text-on-surface-variant hover:text-on-surface transition-colors text-base font-medium py-2" href="#methodology" onClick={() => setMobileMenuOpen(false)}>Methodology</a>
           <a className="text-on-surface-variant hover:text-on-surface transition-colors text-base font-medium py-2" href="#modules" onClick={() => setMobileMenuOpen(false)}>Modules</a>
           <a className="text-on-surface-variant hover:text-on-surface transition-colors text-base font-medium py-2" href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
@@ -58,19 +61,19 @@ export default function LandingNavbar() {
           <div className="h-px bg-surface-container-highest w-full my-2"></div>
           
           <button 
-            onClick={() => handleNavigation('/auth')}
+            onClick={() => handleNavigation('/login')}
             className="text-on-surface-variant hover:text-primary transition-colors text-base font-medium flex items-center gap-2 py-2"
           >
             <span className="material-symbols-outlined text-[20px]">login</span> Sign In
           </button>
           <button 
-            onClick={() => handleNavigation('/auth')}
+            onClick={() => handleNavigation('/signup')}
             className="bg-primary text-white text-base font-medium px-4 py-2 rounded-full hover:bg-primary/90 transition-all flex items-center justify-center gap-2 mt-2 w-full"
           >
             <span className="material-symbols-outlined text-[20px]">person_add</span> Register
           </button>
         </div>
       )}
-    </nav>
+    </header>
   );
 }

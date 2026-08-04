@@ -38,7 +38,7 @@
 
 /* --- Typography Scale (custom sizes not in Tailwind) --- */
 .text-display-lg {
-  font-size: 3.5rem;
+  font-size: clamp(2rem, 1.4rem + 3vw, 3.5rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -141,6 +141,21 @@
 }
 .pricing-toggle-thumb {
   transition: transform 0.2s ease;
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .widget-card,
+  .cta-primary,
+  .faq-content,
+  .faq-chevron {
+    transition: none;
+  }
 }
 
 /* --- Selection color --- */

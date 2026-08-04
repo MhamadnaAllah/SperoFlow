@@ -92,23 +92,41 @@ export default function HeroShaderCanvas() {
 
     let animationFrameId;
     let startTime = performance.now();
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    const render = (time) => {
+    const stopAnimation = () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+      }
+    };
+
+    const drawFrame = (time) => {
       const elapsedTime = (time - startTime) * 0.001;
-      
       gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
-
       gl.uniform1f(timeLocation, elapsedTime);
       gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
-
       gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
 
+    const render = (time) => {
+      drawFrame(time);
       animationFrameId = requestAnimationFrame(render);
     };
 
-    animationFrameId = requestAnimationFrame(render);
+    const syncWithMotionPreference = () => {
+      if (prefersReducedMotion.matches) {
+        stopAnimation();
+        drawFrame(startTime + 1000);
+      } else if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(render);
+      }
+    };
+
+    syncWithMotionPreference();
+    prefersReducedMotion.addEventListener("change", syncWithMotionPreference);
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
@@ -122,7 +140,8 @@ export default function HeroShaderCanvas() {
     resizeObserver.observe(canvas);
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      stopAnimation();
+      prefersReducedMotion.removeEventListener("change", syncWithMotionPreference);
       resizeObserver.disconnect();
     };
   }, []);

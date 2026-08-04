@@ -28,7 +28,7 @@ const CtaSection = () => {
           </p>
           
           <button 
-            onClick={() => router.push('/auth')}
+            onClick={() => router.push('/signup')}
             className="bg-primary hover:bg-primary-dim text-white text-lg font-medium px-10 py-4 rounded-full shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 mx-auto"
           >
             <span>Enter the Studio</span>
