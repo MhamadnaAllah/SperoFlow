@@ -39,7 +39,9 @@ fetch() {
   else
     aws secretsmanager get-secret-value --secret-id "speroflow/prod/$id" --region "$REGION" --query SecretString --output text > "infrastructure/secrets/$out"
   fi
-  chmod 600 "infrastructure/secrets/$out"
+  # 0644 (not 0600): secret files are bind-mounted into non-root containers
+  # that must be able to read them; the dir itself stays private on the host.
+  chmod 644 "infrastructure/secrets/$out"
 }
 fetch postgres_password postgres_password
 fetch redis_password redis_password
