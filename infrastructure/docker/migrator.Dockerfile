@@ -7,6 +7,7 @@ COPY backend/src/SperoFlow.Contracts/SperoFlow.Contracts.csproj backend/src/Sper
 COPY backend/src/SperoFlow.Application/SperoFlow.Application.csproj backend/src/SperoFlow.Application/
 COPY backend/src/SperoFlow.Infrastructure/SperoFlow.Infrastructure.csproj backend/src/SperoFlow.Infrastructure/
 COPY backend/src/SperoFlow.Migrator/SperoFlow.Migrator.csproj backend/src/SperoFlow.Migrator/
+COPY backend/src/SperoFlow.Infrastructure/Directory.Build.props backend/src/SperoFlow.Infrastructure/
 RUN dotnet restore backend/src/SperoFlow.Migrator/SperoFlow.Migrator.csproj
 
 COPY backend/ backend/
