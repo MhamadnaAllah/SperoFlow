@@ -15,8 +15,12 @@ namespace SperoFlow.Infrastructure.Migrations
             // composite IX_knowledge_source_files_DatasetId_OwnerId_State, and on a
             // fresh database the create/drop ordering can otherwise race. Use raw
             // SQL with IF EXISTS so the migration is safe to run from scratch.
+            // Drop only if the app schema and index both exist. On a truly fresh
+            // database the schema may not be created yet when this statement runs,
+            // and Postgres errors on a qualified DROP INDEX IF EXISTS when the
+            // schema is absent. The DO block is fully defensive.
             migrationBuilder.Sql(
-                "DROP INDEX IF EXISTS app.\"IX_knowledge_source_files_DatasetId\";");
+                "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_namespace n JOIN pg_class c ON c.relnamespace = n.oid WHERE n.nspname = 'app' AND c.relname = 'IX_knowledge_source_files_DatasetId' AND c.relkind = 'i') THEN EXECUTE 'DROP INDEX app.\"IX_knowledge_source_files_DatasetId\"'; END IF; END $$;");
 
             migrationBuilder.CreateTable(
                 name: "OpenIddictApplications",
