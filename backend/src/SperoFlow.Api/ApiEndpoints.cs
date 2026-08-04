@@ -181,41 +181,43 @@ public static partial class ApiEndpoints
             DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim(),
         };
 
-        try
-        {
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            if (bootstrapRegistration && await db.AdminBootstraps.AnyAsync(cancellationToken))
+        // NpgsqlRetryingExecutionStrategy rejects user-initiated transactions, so the
+        // whole transactional unit must run inside CreateExecutionStrategy().ExecuteAsync.
+        // The strategy delegates the early-return IResult so the response logic is unchanged.
+        var registrationOutcome = await db.Database.CreateExecutionStrategy().ExecuteAsync(
+            async () =>
             {
-                return Results.Problem(title: "Registration is closed.", statusCode: StatusCodes.Status403Forbidden);
-            }
+                await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+                if (bootstrapRegistration && await db.AdminBootstraps.AnyAsync(cancellationToken))
+                {
+                    return Results.Problem(title: "Registration is closed.", statusCode: StatusCodes.Status403Forbidden);
+                }
 
-            var result = await userManager.CreateAsync(user, request.Password);
-            if (!result.Succeeded)
-            {
-                return Results.ValidationProblem(result.Errors
-                    .GroupBy(error => error.Code)
-                    .ToDictionary(group => group.Key, group => group.Select(error => error.Description).ToArray()));
-            }
-            var rolesSeeded = await EnsureCoreLifeRolesAsync(db, user.Id, cancellationToken);
-            if (bootstrapRegistration)
-            {
-                db.AdminBootstraps.Add(new AdminBootstrap(user.Id));
-            }
+                var result = await userManager.CreateAsync(user, request.Password);
+                if (!result.Succeeded)
+                {
+                    return Results.ValidationProblem(result.Errors
+                        .GroupBy(error => error.Code)
+                        .ToDictionary(group => group.Key, group => group.Select(error => error.Description).ToArray()));
+                }
+                var rolesSeeded = await EnsureCoreLifeRolesAsync(db, user.Id, cancellationToken);
+                if (bootstrapRegistration)
+                {
+                    db.AdminBootstraps.Add(new AdminBootstrap(user.Id));
+                }
 
-            if (rolesSeeded || bootstrapRegistration)
-            {
-                await db.SaveChangesAsync(cancellationToken);
-            }
+                if (rolesSeeded || bootstrapRegistration)
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                }
 
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
+                await transaction.CommitAsync(cancellationToken);
+                return (IResult?)null;
+            });
+
+        if (registrationOutcome is not null)
         {
-            return Results.Conflict(new { message = "The administrator bootstrap was claimed by another registration." });
-        }
-        catch (InvalidOperationException)
-        {
-            return Results.Problem(title: "Account creation is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return registrationOutcome;
         }
 
         if (accountOptions.RequireConfirmedEmail)
