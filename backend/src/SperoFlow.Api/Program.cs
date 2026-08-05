@@ -28,8 +28,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Trust only the private/Docker networks the reverse proxy (Caddy) lives on.
+    // The default loopback-only list does not include the container proxy, so its
+    // X-Forwarded-Proto was ignored and requests looked like plain HTTP, which broke
+    // the antiforgery SecurePolicy=Always check (500 on /auth/csrf).
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("10.0.0.0"), 8));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("172.16.0.0"), 12));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("192.168.0.0"), 16));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("169.254.0.0"), 16));
     options.ForwardLimit = 1;
 });
 builder.Services.AddAntiforgery(options =>
