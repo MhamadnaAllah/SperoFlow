@@ -33,7 +33,7 @@
             header_up -X-Forwarded-Proto
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Host {host}
-            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Proto {http.request.scheme}
             header_up X-Request-Id {http.request.header.X-Request-Id}
             header_up X-Correlation-ID {http.request.header.X-Correlation-ID}
         }
@@ -52,7 +52,7 @@ api.{$APP_DOMAIN:app.example.com} {
     encode zstd gzip
     reverse_proxy api:8080 {
         header_up X-Forwarded-Host {host}
-        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Proto {http.request.scheme}
         header_up X-Request-Id {http.request.header.X-Request-Id}
     }
 }
@@ -62,7 +62,7 @@ ai.{$APP_DOMAIN:app.example.com} {
     encode zstd gzip
     reverse_proxy ai-api:8000 {
         header_up X-Forwarded-Host {host}
-        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Proto {http.request.scheme}
         header_up X-Request-Id {http.request.header.X-Request-Id}
     }
 }
@@ -93,7 +93,7 @@ ai.{$APP_DOMAIN:app.example.com} {
             header_up -X-Forwarded-Proto
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Host {host}
-            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Proto {http.request.scheme}
             header_up X-Request-Id {http.request.header.X-Request-Id}
             header_up X-Correlation-ID {http.request.header.X-Correlation-ID}
         }
