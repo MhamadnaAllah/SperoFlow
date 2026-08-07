@@ -66,6 +66,9 @@ fetch knowledge_portal_data_protection_certificate_password knowledge_portal_dat
 
 # --- 5. Production env for Bedrock routing ---
 cat > .env <<EOF
+APP_DOMAIN=speroflow.space
+CADDY_EMAIL=mhamadnaallah@gmail.com
+KNOWLEDGE_DOMAIN=knowledge.speroflow.space
 BEDROCK_REGION=$REGION
 BEDROCK_MODEL_ID=google.gemma-4-31b
 BEDROCK_ROUTER_MODEL_ID=google.gemma-4-31b
