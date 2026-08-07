@@ -42,10 +42,15 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 builder.Services.AddAntiforgery(options =>
 {
+    var relaxSecureCookie = string.Equals(
+        builder.Configuration["Security:RelaxAntiforgerySecureCookie"],
+        "true",
+        StringComparison.OrdinalIgnoreCase);
+
     options.HeaderName = "X-CSRF-TOKEN";
-    options.Cookie.Name = "__Host-speroflow-xsrf";
+    options.Cookie.Name = relaxSecureCookie ? "speroflow-xsrf" : "__Host-speroflow-xsrf";
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = relaxSecureCookie ? CookieSecurePolicy.None : CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.Cookie.Path = "/";
 });
@@ -79,8 +84,18 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+var trustedHttpsHosts = GetTrustedHttpsHosts(app.Configuration);
 
 app.UseForwardedHeaders();
+app.Use((context, next) =>
+{
+    if (!context.Request.IsHttps && IsTrustedHttpsHost(context.Request.Host.Host, trustedHttpsHosts))
+    {
+        context.Request.Scheme = Uri.UriSchemeHttps;
+    }
+
+    return next(context);
+});
 app.UseExceptionHandler();
 app.UseSperoFlowRequestObservability();
 app.UseHttpsRedirection();
@@ -180,4 +195,39 @@ app.Run();
 
 public partial class Program
 {
+    private static HashSet<string> GetTrustedHttpsHosts(IConfiguration configuration)
+    {
+        var hosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddConfiguredHost(hosts, configuration["Accounts:PublicWebOrigin"]);
+        AddConfiguredHost(hosts, configuration["IdentityServer:Issuer"]);
+        AddConfiguredHostList(hosts, configuration["PublicIngress:TrustedHttpsHosts"]);
+        return hosts;
+    }
+
+    private static bool IsTrustedHttpsHost(string? host, HashSet<string> trustedHosts) =>
+        !string.IsNullOrWhiteSpace(host) && trustedHosts.Contains(host);
+
+    private static void AddConfiguredHostList(HashSet<string> hosts, string? value)
+    {
+        foreach (var item in (value ?? string.Empty).Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            AddConfiguredHost(hosts, item);
+        }
+    }
+
+    private static void AddConfiguredHost(HashSet<string> hosts, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var candidate = value.Trim();
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri))
+        {
+            candidate = uri.Host;
+        }
+
+        hosts.Add(candidate);
+    }
 }

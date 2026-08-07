@@ -108,6 +108,10 @@ services:
       Smtp__FromName: SperoFlow
       Smtp__UseSsl: "true"
       KnowledgePlatform__BaseUrl: http://knowledge-api:8080
+      PublicIngress__TrustedHttpsHosts: ${APP_DOMAIN:-app.example.com},app.${APP_DOMAIN:-app.example.com},api.${APP_DOMAIN:-app.example.com}
+      # Temporary production unblock while forwarded HTTPS handling is verified.
+      # Set RELAX_ANTIFORGERY_SECURE_COOKIE=false to restore __Host- + Secure.
+      Security__RelaxAntiforgerySecureCookie: "${RELAX_ANTIFORGERY_SECURE_COOKIE:-true}"
       IdentityServer__Enabled: "true"
       IdentityServer__Issuer: https://${APP_DOMAIN:-app.example.com}
       IdentityServer__KnowledgePortalClientId: speroflow-knowledge-portal

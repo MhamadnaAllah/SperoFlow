@@ -1,15 +1,64 @@
-﻿{
+{
     email mhamadnaallah@gmail.com
+    log {
+        output stdout
+        format json
+    }
 }
 
+# Main application + API (same-origin so first-party cookies & CSRF work).
 speroflow.space, app.speroflow.space {
-    reverse_proxy web:3000
+    encode zstd gzip
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Resource-Policy "same-site"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+
+    @metrics path /metrics /metrics/*
+    respond @metrics "Not found" 404
+
+    @api path /api/* /connect/* /.well-known/* /health/live /health/ready
+    handle @api {
+        reverse_proxy api:8080 {
+            header_up -X-Forwarded-For
+            header_up -X-Forwarded-Host
+            header_up -X-Forwarded-Proto
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto https
+            header_up X-Request-Id {http.request.header.X-Request-Id}
+            header_up X-Correlation-ID {http.request.header.X-Correlation-ID}
+        }
+    }
+
+    handle {
+        reverse_proxy web:3000 {
+            header_up X-Request-Id {http.request.header.X-Request-Id}
+        }
+    }
 }
 
 api.speroflow.space {
-    reverse_proxy api:8080
+    encode zstd gzip
+    reverse_proxy api:8080 {
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto https
+        header_up X-Request-Id {http.request.header.X-Request-Id}
+    }
 }
 
 ai.speroflow.space {
-    reverse_proxy ai-api:8000
+    encode zstd gzip
+    reverse_proxy ai-api:8000 {
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto https
+        header_up X-Request-Id {http.request.header.X-Request-Id}
+    }
 }

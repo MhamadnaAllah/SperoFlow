@@ -70,6 +70,7 @@ BEDROCK_REGION=$REGION
 BEDROCK_MODEL_ID=google.gemma-4-31b
 BEDROCK_ROUTER_MODEL_ID=google.gemma-4-31b
 EMBEDDING_MODEL_ID=cohere.embed-v4:0
+RELAX_ANTIFORGERY_SECURE_COOKIE=true
 EOF
 
 # --- 6. Production Caddyfile (Caddy terminates TLS for the 4 hostnames) ---
