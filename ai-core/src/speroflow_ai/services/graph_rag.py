@@ -474,6 +474,11 @@ class HybridRAGPipeline:
     def _ensure_embedder(self) -> None:
         if self._embedder is not None:
             return
+        import os
+        os.environ["HF_HOME"] = os.getenv("HF_HOME", "/tmp/hf")
+        os.environ["TORCH_HOME"] = os.getenv("TORCH_HOME", "/tmp/torch")
+        os.environ["TRANSFORMERS_CACHE"] = os.getenv("TRANSFORMERS_CACHE", "/tmp/transformers")
+
         from langchain_huggingface import HuggingFaceEmbeddings
 
         model_name = self._embedding_model_name or "BAAI/bge-m3"
