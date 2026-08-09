@@ -409,48 +409,32 @@ class HybridRAGPipeline:
                 "synthesis_error": cypher_err,
             }
 
-        if strategy == "hybrid":
-            if vector_err:
-                cypher_ans = state.get("cypher_answer") or "No answer generated."
-                return {
-                    "answer": cypher_ans,
-                    "strategy_used": "hybrid (cypher-only fallback)",
-                }
-            elif cypher_err:
-                self._ensure_llm()
+        try:
+            self._ensure_llm()
+            if strategy == "vector" or (strategy == "hybrid" and cypher_err):
                 prompt = QA_SYNTHESIS_PROMPT.format(context=state["vector_context"], question=question)
-                response = await self._llm.ainvoke(prompt)
-                answer = response.content if hasattr(response, "content") else str(response)
-                return {
-                    "answer": answer,
-                    "strategy_used": "hybrid (vector-only fallback)",
-                }
-
-        if strategy == "vector":
-            if not state["vector_context"]:
-                return {
-                    "answer": "No relevant topics found. Try rephrasing your question.",
-                }
-            self._ensure_llm()
-            prompt = QA_SYNTHESIS_PROMPT.format(context=state["vector_context"], question=question)
+            else:
+                prompt = HYBRID_MERGE_PROMPT.format(
+                    vector_context=state["vector_context"] or "(No vector results)",
+                    cypher_context=state["cypher_context"] or "(No Cypher results)",
+                    question=question,
+                )
             response = await self._llm.ainvoke(prompt)
             answer = response.content if hasattr(response, "content") else str(response)
             return {"answer": answer}
-
-        elif strategy == "cypher":
-            cypher_ans = state.get("cypher_answer") or "No answer generated."
-            return {"answer": cypher_ans}
-
-        else:  # hybrid
-            self._ensure_llm()
-            prompt = HYBRID_MERGE_PROMPT.format(
-                vector_context=state["vector_context"] or "(No vector results)",
-                cypher_context=state["cypher_context"] or "(No Cypher results)",
-                question=question,
-            )
-            response = await self._llm.ainvoke(prompt)
-            answer = response.content if hasattr(response, "content") else str(response)
-            return {"answer": answer}
+        except Exception as exc:
+            logger.warning("LLM generation unavailable (%s); returning Neo4j graph context.", exc)
+            parts = [f"### SperoFlow Knowledge Graph Results for: '{question}'\n"]
+            if state.get("vector_context"):
+                parts.append("#### Relevant Topics & Content:\n" + state["vector_context"])
+            if state.get("cypher_context"):
+                parts.append("#### Graph Relationships:\n" + state["cypher_context"])
+            if not state.get("vector_context") and not state.get("cypher_context"):
+                parts.append("No matching topics were found in the knowledge graph.")
+            return {
+                "answer": "\n\n".join(parts),
+                "strategy_used": "neo4j-graph-direct",
+            }
 
     # ── Private: Lazy Initialization ──────────────────────────────────────────
 
