@@ -79,7 +79,7 @@ LIMIT 10
 
 Question: List all topics in the AI Agents roadmap.
 Cypher:
-MATCH (r:Roadmap {roadmap_name: "ai-agents"})-[:CONTAINS]->(t:Topic)
+MATCH (r:Roadmap {{roadmap_name: "ai-agents"}})-[:CONTAINS]->(t:Topic)
 RETURN t.label_text AS topic, t.node_id AS node_id
 ORDER BY t.label_text
 
@@ -475,12 +475,25 @@ class HybridRAGPipeline:
         if self._embedder is not None:
             return
         from langchain_huggingface import HuggingFaceEmbeddings
-        self._embedder = HuggingFaceEmbeddings(
-            model_name=self._embedding_model_name,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-        logger.info("Embedder initialized: %s", self._embedding_model_name)
+
+        model_name = self._embedding_model_name or "BAAI/bge-m3"
+        if ":" in model_name or not ("/" in model_name or "-" in model_name):
+            model_name = "BAAI/bge-m3"
+
+        try:
+            self._embedder = HuggingFaceEmbeddings(
+                model_name=model_name,
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+        except Exception:
+            model_name = "BAAI/bge-m3"
+            self._embedder = HuggingFaceEmbeddings(
+                model_name=model_name,
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+        logger.info("Embedder initialized: %s", model_name)
 
     def _ensure_neo4j_graph(self) -> None:
         if self._neo4j_graph is not None:
