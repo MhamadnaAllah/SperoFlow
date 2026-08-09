@@ -1171,7 +1171,7 @@ public static partial class ApiEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["scope"] = ["Scope must be either 'roadmap' or 'dataset'."] });
             }
 
-            string knowledgeAccessGrant;
+            string? knowledgeAccessGrant = null;
             if (scope == "dataset")
             {
                 var selectedIds = request.DatasetIds?.Where(id => id != Guid.Empty).Distinct().OrderBy(id => id).ToArray() ?? [];
@@ -1201,7 +1201,6 @@ public static partial class ApiEndpoints
             }
             else
             {
-                knowledgeAccessGrant = null;
                 try
                 {
                     var catalog = await knowledgePlatform.ListCatalogAsync(currentUser.UserId, cancellationToken);
