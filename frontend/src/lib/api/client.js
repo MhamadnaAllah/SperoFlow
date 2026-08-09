@@ -59,8 +59,9 @@ function emitAuthChange() {
 function formatErrorMessage(payload) {
   if (!payload) return "The request could not be completed.";
 
-  if (payload.errors && typeof payload.errors === "object") {
-    const messages = Object.values(payload.errors)
+  const errObj = payload.errors || payload.Errors;
+  if (errObj && typeof errObj === "object") {
+    const messages = Object.values(errObj)
       .flat()
       .filter((msg) => typeof msg === "string" && msg.trim().length > 0);
     if (messages.length > 0) {
@@ -68,20 +69,24 @@ function formatErrorMessage(payload) {
     }
   }
 
-  if (payload.detail && typeof payload.detail === "string") {
+  if (payload.detail && typeof payload.detail === "string" && payload.detail.trim().length > 0) {
     return payload.detail;
   }
 
-  if (payload.title && typeof payload.title === "string" && payload.title !== "One or more validation errors occurred.") {
-    return payload.title;
-  }
-
-  if (payload.error && typeof payload.error === "string") {
+  if (payload.error && typeof payload.error === "string" && payload.error.trim().length > 0) {
     return payload.error;
   }
 
-  if (payload.message && typeof payload.message === "string") {
+  if (payload.message && typeof payload.message === "string" && payload.message.trim().length > 0) {
     return payload.message;
+  }
+
+  if (payload.title && typeof payload.title === "string" && payload.title.trim().length > 0 && payload.title !== "One or more validation errors occurred.") {
+    return payload.title;
+  }
+
+  if (typeof payload === "string" && payload.trim().length > 0) {
+    return payload;
   }
 
   return "The request could not be completed.";

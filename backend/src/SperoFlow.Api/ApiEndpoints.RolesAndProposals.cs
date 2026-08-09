@@ -763,7 +763,7 @@ public static partial class ApiEndpoints
         Guid ownerId,
         Guid? roleId,
         CancellationToken cancellationToken) =>
-        roleId is null
+        roleId is null || roleId == Guid.Empty
             ? Task.FromResult(true)
             : db.LifeRoles.AnyAsync(
                 role => role.Id == roleId.Value && role.OwnerId == ownerId && !role.IsArchived,
