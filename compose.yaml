@@ -107,7 +107,7 @@ services:
       Smtp__FromAddress:
       Smtp__FromName: SperoFlow
       Smtp__UseSsl: "true"
-      KnowledgePlatform__BaseUrl: http://knowledge-api:8080
+      KnowledgePlatform__BaseUrl: http://ai-api:8000
       PublicIngress__TrustedHttpsHosts: ${APP_DOMAIN:-app.example.com},app.${APP_DOMAIN:-app.example.com},api.${APP_DOMAIN:-app.example.com}
       # Temporary production unblock while forwarded HTTPS handling is verified.
       # Set RELAX_ANTIFORGERY_SECURE_COOKIE=false to restore __Host- + Secure.
@@ -294,6 +294,9 @@ services:
       LLM_PROVIDER: bedrock
       LLM_MODEL: ${BEDROCK_MODEL_ID:-amazon.nova-lite-v1:0}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-AKIAV2LOOPWI67JTS67J}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-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}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       SERVICE_JWT_ISSUER: speroflow-api
       SERVICE_JWT_AUDIENCE: speroflow-ai
       SERVICE_JWT_REQUIRED: "true"
@@ -337,6 +340,9 @@ services:
       PRIMARY_API_URL: http://api:8080
       AI_JOBS_STREAM: speroflow:ai:jobs
       AI_JOBS_GROUP: speroflow-ai-workers
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-AKIAV2LOOPWI67JTS67J}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-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}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
     depends_on:
       api:
         condition: service_healthy
