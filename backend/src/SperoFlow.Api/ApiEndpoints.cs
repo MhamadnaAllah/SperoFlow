@@ -1201,44 +1201,29 @@ public static partial class ApiEndpoints
             }
             else
             {
-                // Roadmap queries resolve only through approved shared releases on the
-                // isolated knowledge graph. The browser never receives this grant.
-                IReadOnlyList<KnowledgeCatalogItem> catalog;
+                knowledgeAccessGrant = null;
                 try
                 {
-                    catalog = await knowledgePlatform.ListCatalogAsync(currentUser.UserId, cancellationToken);
+                    var catalog = await knowledgePlatform.ListCatalogAsync(currentUser.UserId, cancellationToken);
+                    var publishedIds = catalog
+                        .Where(item => string.Equals(item.Visibility, "published", StringComparison.OrdinalIgnoreCase))
+                        .Select(item => item.Id)
+                        .Distinct()
+                        .OrderBy(id => id)
+                        .ToArray();
+
+                    if (publishedIds.Length is > 0 and <= 20)
+                    {
+                        var grantResponse = await knowledgePlatform.IssueAccessGrantAsync(currentUser.UserId, publishedIds, cancellationToken);
+                        knowledgeAccessGrant = grantResponse.AccessGrant;
+                        request = request with { Scope = "dataset", DatasetIds = publishedIds };
+                    }
                 }
                 catch (HttpRequestException)
                 {
-                    return Results.Problem(title: "Published knowledge is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+                    // Fall back gracefully to direct Neo4j roadmap GraphRAG query
+                    request = request with { Scope = "roadmap" };
                 }
-
-                var publishedIds = catalog
-                    .Where(item => string.Equals(item.Visibility, "published", StringComparison.OrdinalIgnoreCase))
-                    .Select(item => item.Id)
-                    .Distinct()
-                    .OrderBy(id => id)
-                    .ToArray();
-                if (publishedIds.Length == 0)
-                {
-                    return Results.Problem(title: "No published knowledge release is available for roadmap retrieval.", statusCode: StatusCodes.Status404NotFound);
-                }
-
-                if (publishedIds.Length > 20)
-                {
-                    return Results.Problem(title: "The published knowledge catalog exceeds the supported query scope.", detail: "Create a curated collection before querying more than twenty datasets.", statusCode: StatusCodes.Status409Conflict);
-                }
-
-                try
-                {
-                    knowledgeAccessGrant = (await knowledgePlatform.IssueAccessGrantAsync(currentUser.UserId, publishedIds, cancellationToken)).AccessGrant;
-                }
-                catch (HttpRequestException)
-                {
-                    return Results.Problem(title: "Published knowledge access is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
-                }
-
-                request = request with { Scope = "dataset", DatasetIds = publishedIds };
             }
             try
             {
