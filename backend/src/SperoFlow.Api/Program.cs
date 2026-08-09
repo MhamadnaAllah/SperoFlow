@@ -38,7 +38,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("172.16.0.0"), 12));
     options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("192.168.0.0"), 16));
     options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("169.254.0.0"), 16));
-    options.ForwardLimit = 1;
+    options.ForwardLimit = null;
 });
 builder.Services.AddAntiforgery(options =>
 {
@@ -89,7 +89,9 @@ var trustedHttpsHosts = GetTrustedHttpsHosts(app.Configuration);
 app.UseForwardedHeaders();
 app.Use((context, next) =>
 {
-    if (!context.Request.IsHttps && IsTrustedHttpsHost(context.Request.Host.Host, trustedHttpsHosts))
+    if (!context.Request.IsHttps &&
+        (IsTrustedHttpsHost(context.Request.Host.Host, trustedHttpsHosts) ||
+         string.Equals(context.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase)))
     {
         context.Request.Scheme = Uri.UriSchemeHttps;
     }
