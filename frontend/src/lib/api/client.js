@@ -56,6 +56,37 @@ function emitAuthChange() {
   }
 }
 
+function formatErrorMessage(payload) {
+  if (!payload) return "The request could not be completed.";
+
+  if (payload.errors && typeof payload.errors === "object") {
+    const messages = Object.values(payload.errors)
+      .flat()
+      .filter((msg) => typeof msg === "string" && msg.trim().length > 0);
+    if (messages.length > 0) {
+      return messages.join(" ");
+    }
+  }
+
+  if (payload.detail && typeof payload.detail === "string") {
+    return payload.detail;
+  }
+
+  if (payload.title && typeof payload.title === "string" && payload.title !== "One or more validation errors occurred.") {
+    return payload.title;
+  }
+
+  if (payload.error && typeof payload.error === "string") {
+    return payload.error;
+  }
+
+  if (payload.message && typeof payload.message === "string") {
+    return payload.message;
+  }
+
+  return "The request could not be completed.";
+}
+
 export async function apiRequest(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const headers = new Headers(options.headers || {});
@@ -82,7 +113,7 @@ export async function apiRequest(path, options = {}) {
     if (unsafe && response.status === 400 && payload?.title === "Invalid CSRF token.") {
       csrfToken = null;
     }
-    const detail = payload?.detail || payload?.title || payload?.error || "The request could not be completed.";
+    const detail = formatErrorMessage(payload);
     throw new ApiError(detail, response.status, payload);
   }
 
