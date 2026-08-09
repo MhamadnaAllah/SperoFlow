@@ -60,10 +60,10 @@ async def _fetch_prerequisite_subgraph(
     goal_name: str,
 ) -> tuple[list[str], list[tuple[str, str]]]:
     cypher = """
-        MATCH path = (prereq)-[:LEADS_TO|DEPENDS_ON*1..10]->(goal)
-        WHERE (goal:Topic OR goal:Subtopic)
-          AND goal.label_text = $goal_name
-          AND (prereq:Topic OR prereq:Subtopic)
+        MATCH path = (prereq)-[:LEADS_TO|DEPENDS_ON|CONTAINS*1..10]->(goal)
+        WHERE (goal:Topic OR goal:Subtopic OR goal:Roadmap)
+          AND (toLower(goal.label_text) CONTAINS toLower($goal_name) OR toLower($goal_name) CONTAINS toLower(goal.label_text))
+          AND (prereq:Topic OR prereq:Subtopic OR prereq:Roadmap)
         UNWIND relationships(path) AS rel
         WITH DISTINCT
             startNode(rel).label_text AS source,
@@ -146,7 +146,7 @@ async def get_prerequisites(
         if not edges and len(nodes) <= 1:
             async with driver.session() as session:
                 result = await session.run(
-                    "MATCH (t) WHERE (t:Topic OR t:Subtopic) AND t.label_text = $name RETURN t.label_text AS name",
+                    "MATCH (t) WHERE (t:Topic OR t:Subtopic OR t:Roadmap) AND (toLower(t.label_text) CONTAINS toLower($name) OR toLower($name) CONTAINS toLower(t.label_text)) RETURN t.label_text AS name LIMIT 1",
                     name=request.goal_name,
                 )
                 record = await result.single()
