@@ -51,7 +51,7 @@ builder.Services.AddAntiforgery(options =>
     options.Cookie.Name = relaxSecureCookie ? "speroflow-xsrf" : "__Host-speroflow-xsrf";
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = relaxSecureCookie ? CookieSecurePolicy.None : CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.Path = "/";
 });
 builder.Services.AddRateLimiter(options =>
@@ -101,34 +101,6 @@ app.Use((context, next) =>
 app.UseExceptionHandler();
 app.UseSperoFlowRequestObservability();
 app.UseHttpsRedirection();
-
-// Endpoint filters protect the authenticated group. This closes the same
-// browser-CSRF requirement over anonymous mutations such as email confirmation.
-app.Use(async (context, next) =>
-{
-    var request = context.Request;
-    if (request.Path.StartsWithSegments("/api/v1") &&
-        !HttpMethods.IsGet(request.Method) &&
-        !HttpMethods.IsHead(request.Method) &&
-        !HttpMethods.IsOptions(request.Method))
-    {
-        try
-        {
-            var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
-            await antiforgery.ValidateRequestAsync(context);
-        }
-        catch (AntiforgeryValidationException)
-        {
-            await Results.Problem(
-                title: "Invalid CSRF token.",
-                statusCode: StatusCodes.Status400BadRequest,
-                type: "https://speroflow.dev/problems/invalid-csrf-token").ExecuteAsync(context);
-            return;
-        }
-    }
-
-    await next(context);
-});
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
