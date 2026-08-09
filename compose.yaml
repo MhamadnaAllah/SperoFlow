@@ -292,7 +292,7 @@ services:
       KNOWLEDGE_GRANT_AUDIENCE: speroflow-ai
       KNOWLEDGE_GRANT_PUBLIC_KEY_PATH: /run/secrets/knowledge_grant_public_key
       LLM_PROVIDER: bedrock
-      LLM_MODEL: ${BEDROCK_MODEL_ID:-us.amazon.nova-lite-v1:0}
+      LLM_MODEL: ${BEDROCK_MODEL_ID:-google.gemma-3-27b-it}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-AKIAV2LOOPWI67JTS67J}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-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}
