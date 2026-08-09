@@ -26,7 +26,7 @@ public sealed class AiGateway : IAiGateway
 
     public async Task<GraphQueryResponse> QueryGraphAsync(GraphQueryRequest request, Guid userId, string? knowledgeAccessGrant, CancellationToken cancellationToken)
     {
-        using var payload = await InvokeAsync(
+        var payload = await InvokeAsync(
             "/api/query",
             new
             {
@@ -40,7 +40,7 @@ public sealed class AiGateway : IAiGateway
             userId,
             "ai.invoke",
             cancellationToken);
-        return new GraphQueryResponse(payload.RootElement.Clone());
+        return new GraphQueryResponse(payload.RootElement);
     }
 
     public async Task<JsonDocument> InvokeAsync(
