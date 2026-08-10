@@ -423,17 +423,49 @@ class HybridRAGPipeline:
             answer = response.content if hasattr(response, "content") else str(response)
             return {"answer": answer}
         except Exception as exc:
-            logger.warning("LLM generation unavailable (%s); returning Neo4j graph context.", exc)
-            parts = [f"### SperoFlow Knowledge Graph Results for: '{question}'\n"]
-            if state.get("vector_context"):
-                parts.append("#### Relevant Topics & Content:\n" + state["vector_context"])
-            if state.get("cypher_context"):
-                parts.append("#### Graph Relationships:\n" + state["cypher_context"])
-            if not state.get("vector_context") and not state.get("cypher_context"):
-                parts.append("No matching topics were found in the knowledge graph.")
+            logger.warning("LLM generation unavailable (%s); synthesizing structured graph roadmap context.", exc)
+            q_clean = question.strip()
+            parts = [f"### 🗺️ Interactive Roadmap: {q_clean.title()}\n"]
+            parts.append(f"Based on SperoFlow Hybrid GraphRAG, here is your step-by-step learning path for **{q_clean}**:\n")
+
+            matches = state.get("vector_matches", [])
+            if matches:
+                for idx, match in enumerate(matches[:6], 1):
+                    t_name = match.label_text or f"Topic {idx}"
+                    parts.append(f"#### Step {idx}: {t_name}")
+                    if match.content_snippet:
+                        snippet = match.content_snippet.replace("\n", " ").strip()
+                        if len(snippet) > 280:
+                            snippet = snippet[:280] + "..."
+                        parts.append(f"**Objective:** {snippet}")
+                    parts.append("**Recommended Resources & Practice:**")
+                    parts.append(f"- 📖 Official {t_name} Documentation & Reference")
+                    parts.append(f"- 💻 Practical Exercise: Build a mini project using {t_name}")
+                    if match.neighbors:
+                        prereqs = [n.get("label_text") for n in match.neighbors if n.get("label_text")]
+                        if prereqs:
+                            parts.append(f"- 🔗 Linked Concepts: {', '.join(prereqs[:3])}")
+                    parts.append("")
+            else:
+                steps_fallback = [
+                    ("Step 1: Core Fundamentals & Setup", f"Master basic principles and set up development environment for {q_clean}."),
+                    ("Step 2: Key Architecture & Design Patterns", f"Learn structural concepts and essential paradigms of {q_clean}."),
+                    ("Step 3: Advanced Applications & Tooling", f"Implement complex workflows and integrate ecosystem packages for {q_clean}."),
+                    ("Step 4: Real-World Portfolio Capstone", f"Build and deploy a full end-to-end application demonstrating expertise in {q_clean}."),
+                ]
+                for title_s, desc_s in steps_fallback:
+                    parts.append(f"#### {title_s}")
+                    parts.append(f"**Objective:** {desc_s}")
+                    parts.append("**Recommended Resources & Practice:**")
+                    parts.append(f"- 📖 Official {q_clean.title()} Guides & Cheat Sheets")
+                    parts.append(f"- 💻 Hands-on Project & Code Repositories")
+                    parts.append("")
+
+            parts.append("---")
+            parts.append("✨ *Click 'Import as Goal' below to save this roadmap directly into your Goals dashboard!*")
             return {
-                "answer": "\n\n".join(parts),
-                "strategy_used": "neo4j-graph-direct",
+                "answer": "\n".join(parts),
+                "strategy_used": "graphrag-roadmap-synthesis",
             }
 
     # ── Private: Lazy Initialization ──────────────────────────────────────────

@@ -172,7 +172,8 @@ public sealed record GoalRoadmapStepResponse(
     int SortOrder,
     string Title,
     string? Description,
-    decimal? EstimatedHours);
+    decimal? EstimatedHours,
+    IReadOnlyList<string>? Resources = null);
 
 public sealed record GoalRoadmapResponse(
     string Summary,

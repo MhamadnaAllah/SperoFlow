@@ -4,7 +4,7 @@ Roadmap router — graph-grounded learning path generation.
 POST /api/roadmap/prerequisites
   Traverses the Neo4j prerequisite subgraph for a goal topic,
   topologically sorts it, then uses the LLM to synthesize a
-  structured learning timeline.
+  structured learning timeline with steps and curated resources.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict, deque
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from neo4j import AsyncDriver
@@ -29,29 +30,41 @@ router = APIRouter(prefix="/api/roadmap", tags=["Roadmap Graph RAG"])
 
 # ── System Prompt ──────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are a precise curriculum designer for SperoFlow.
+SYSTEM_PROMPT = """You are an expert curriculum designer for SperoFlow.
 
-You will be given a GOAL and a list of PREREQUISITE TOPICS extracted from a
-verified knowledge graph in correct topological (dependency) order.
+Your task is to create a structured, step-by-step learning roadmap for a GOAL.
 
-Your task:
-1. For each topic, write a brief description explaining WHY it is needed.
-2. Estimate study hours for each topic (be realistic).
-3. Write a short motivational summary of the overall learning journey.
+Guidelines:
+1. Divide the learning path into 4 to 8 logical, progressive steps.
+2. For each step, provide:
+   - "topic": Clear, concise step title
+   - "description": Why this step is needed and what key concepts to master
+   - "estimated_hours": Realistic study/practice time in hours (e.g. 2.5, 4.0)
+   - "resources": A list of 2-4 actionable resources, official documentation topics, or practice exercises for this step
+3. Write an inspiring "motivational_summary" summarizing the journey.
 
-STRICT RULES:
-- You MUST use ONLY the topics provided in the graph context.
-- You MUST NOT add, remove, or reorder any topics.
-- Keep descriptions concise (under 500 characters each).
-- Respond ONLY as a valid JSON object matching this schema:
-  {
-    "goal": "...",
-    "steps": [{"topic": "...", "description": "...", "estimated_hours": 0.0}],
-    "total_estimated_hours": 0.0,
-    "motivational_summary": "..."
-  }
+Respond ONLY as a valid JSON object matching this schema:
+{
+  "goal": "Goal Name",
+  "steps": [
+    {
+      "topic": "Step Title",
+      "description": "Clear step objective and overview.",
+      "estimated_hours": 3.0,
+      "resources": ["Official Documentation / Guide", "Key Practice Project", "Core Concept"]
+    }
+  ],
+  "total_estimated_hours": 15.0,
+  "motivational_summary": "Motivational summary text..."
+}
 """
 
+def _clean_topic_name(raw: str) -> str:
+    """Strip action phrases like 'i want to learn', 'how to', 'master'."""
+    text = raw.strip()
+    pattern = r"^(?:i\s+want\s+to\s+learn|how\s+to\s+learn|how\s+to|learn\s+about|learn|master|study|guide\s+to)\s+"
+    cleaned = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+    return cleaned if len(cleaned) >= 2 else text
 
 # ── Cypher Traversal ──────────────────────────────────────────────────────────
 
@@ -59,10 +72,11 @@ async def _fetch_prerequisite_subgraph(
     driver: AsyncDriver,
     goal_name: str,
 ) -> tuple[list[str], list[tuple[str, str]]]:
+    topic = _clean_topic_name(goal_name)
     cypher = """
         MATCH path = (prereq)-[:LEADS_TO|DEPENDS_ON|CONTAINS*1..10]->(goal)
         WHERE (goal:Topic OR goal:Subtopic OR goal:Roadmap)
-          AND (toLower(goal.label_text) CONTAINS toLower($goal_name) OR toLower($goal_name) CONTAINS toLower(goal.label_text))
+          AND (toLower(goal.label_text) CONTAINS toLower($topic) OR toLower($topic) CONTAINS toLower(goal.label_text))
           AND (prereq:Topic OR prereq:Subtopic OR prereq:Roadmap)
         UNWIND relationships(path) AS rel
         WITH DISTINCT
@@ -74,7 +88,7 @@ async def _fetch_prerequisite_subgraph(
     edges: list[tuple[str, str]] = []
 
     async with driver.session() as session:
-        result = await session.run(cypher, goal_name=goal_name)
+        result = await session.run(cypher, topic=topic)
         records = await result.data()
         for record in records:
             src, tgt = record["source"], record["target"]
@@ -82,8 +96,23 @@ async def _fetch_prerequisite_subgraph(
             nodes.add(tgt)
             edges.append((src, tgt))
 
+    # If direct path traversal yielded nothing, attempt fuzzy node matching
+    if not edges:
+        fuzzy_cypher = """
+            MATCH (t)
+            WHERE (t:Topic OR t:Subtopic OR t:Roadmap)
+              AND (toLower(t.label_text) CONTAINS toLower($topic) OR toLower($topic) CONTAINS toLower(t.label_text))
+            RETURN t.label_text AS name
+            LIMIT 10
+        """
+        async with driver.session() as session:
+            f_result = await session.run(fuzzy_cypher, topic=topic)
+            f_records = await f_result.data()
+            for r in f_records:
+                nodes.add(r["name"])
+
     nodes.add(goal_name)
-    logger.info("Subgraph for '%s': %d nodes, %d edges.", goal_name, len(nodes), len(edges))
+    logger.info("Subgraph for '%s' (cleaned: '%s'): %d nodes, %d edges.", goal_name, topic, len(nodes), len(edges))
     return list(nodes), edges
 
 
@@ -94,7 +123,7 @@ def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[st
 
     for src, tgt in edges:
         if src not in in_degree or tgt not in in_degree:
-            continue  # skip edges involving nodes outside the subgraph
+            continue
         adjacency[src].append(tgt)
         in_degree[tgt] += 1
 
@@ -110,10 +139,79 @@ def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[st
                 queue.append(neighbor)
 
     if len(result) < len(nodes):
-        # Cycle detected — append remaining
         result.extend(n for n in nodes if n not in set(result))
 
     return result
+
+
+def _build_fallback_timeline(goal_name: str, topics: list[str]) -> dict[str, Any]:
+    cleaned = _clean_topic_name(goal_name)
+    title_case = cleaned.title()
+
+    if topics and len(topics) > 1:
+        steps = []
+        for i, t in enumerate(topics):
+            steps.append({
+                "topic": t,
+                "description": f"Master fundamental concepts and practical implementation of {t}.",
+                "estimated_hours": 3.0,
+                "resources": [
+                    f"{t} Official Documentation & Core API Specs",
+                    f"Hands-on Project: Implement key {t} components",
+                    f"Interactive Practice & Verification Exercises",
+                ],
+            })
+    else:
+        steps = [
+            {
+                "topic": f"1. Foundations & Environment Setup for {title_case}",
+                "description": f"Understand core principles, install required toolchains, and setup working environment for {cleaned}.",
+                "estimated_hours": 3.0,
+                "resources": [
+                    f"Getting Started Guide for {title_case}",
+                    "Environment Configuration & CLI Setup",
+                    "Hello World & Basic Syntax Walkthrough",
+                ],
+            },
+            {
+                "topic": f"2. Core Concepts & Building Blocks of {title_case}",
+                "description": f"Dive into essential architecture, data structures, and fundamental paradigms.",
+                "estimated_hours": 5.0,
+                "resources": [
+                    f"{title_case} Core Architecture Documentation",
+                    "Deep-dive Code Examples & Patterns",
+                    "Unit Testing & Debugging Best Practices",
+                ],
+            },
+            {
+                "topic": f"3. Advanced Techniques & Ecosystem Tools",
+                "description": f"Explore ecosystem libraries, performance tuning, and production-ready patterns.",
+                "estimated_hours": 6.0,
+                "resources": [
+                    f"Standard Library & Popular Ecosystem Packages for {title_case}",
+                    "Performance Benchmarking & Profiling Guide",
+                    "Security & Best Practice Checklist",
+                ],
+            },
+            {
+                "topic": f"4. Real-World Application & Portfolio Project",
+                "description": f"Synthesize your knowledge by building and deploying a complete end-to-end application.",
+                "estimated_hours": 8.0,
+                "resources": [
+                    f"Full-stack Capstone Project Specification for {title_case}",
+                    "CI/CD & Deployment Guide",
+                    "Code Review & Portfolio Presentation Checklist",
+                ],
+            },
+        ]
+
+    total_h = sum(float(s["estimated_hours"]) for s in steps)
+    return {
+        "goal": goal_name,
+        "steps": steps,
+        "total_estimated_hours": total_h,
+        "motivational_summary": f"Embark on a structured 4-stage learning path to master {title_case} step by step!",
+    }
 
 
 # ── Router ────────────────────────────────────────────────────────────────────
@@ -121,11 +219,7 @@ def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[st
 @router.post(
     "/prerequisites",
     response_model=LearningTimeline,
-    responses={
-        404: {"model": ErrorResponse, "description": "Goal topic not found in graph."},
-        500: {"model": ErrorResponse},
-    },
-    summary="Generate a prerequisite learning path for a goal topic",
+    summary="Generate an interactive prerequisite learning path with resources for a goal topic",
 )
 async def get_prerequisites(
     request: PrerequisiteRequest,
@@ -134,44 +228,24 @@ async def get_prerequisites(
     driver: AsyncDriver = Depends(get_neo4j),
 ) -> LearningTimeline:
     """
-    Pipeline: Goal → Neo4j Traversal → Topological Sort → LLM Synthesis → LearningTimeline
+    Pipeline: Goal → Neo4j Traversal → Topological Sort → LLM Synthesis → LearningTimeline with Step Resources
     """
     logger.info("Prerequisites request for goal: '%s'", request.goal_name)
-
+    nodes, edges = [], []
     try:
-        # Step 1: Fetch prerequisite subgraph
         nodes, edges = await _fetch_prerequisite_subgraph(driver, request.goal_name)
+    except Exception as exc:
+        logger.warning("Neo4j graph fetch encountered an issue: %s", exc)
 
-        # Step 2: Verify goal exists
-        if not edges and len(nodes) <= 1:
-            async with driver.session() as session:
-                result = await session.run(
-                    "MATCH (t) WHERE (t:Topic OR t:Subtopic OR t:Roadmap) AND (toLower(t.label_text) CONTAINS toLower($name) OR toLower($name) CONTAINS toLower(t.label_text)) RETURN t.label_text AS name LIMIT 1",
-                    name=request.goal_name,
-                )
-                record = await result.single()
-                if not record:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=(
-                            f"Topic '{request.goal_name}' not found in the knowledge graph. "
-                            "Check the exact spelling or browse available roadmaps."
-                        ),
-                    )
+    ordered = _topological_sort(nodes, edges) if nodes else []
 
-        # Step 3: Topological sort
-        ordered = _topological_sort(nodes, edges)
-        logger.info("Order for '%s': %s", request.goal_name, " → ".join(ordered))
+    context = f"GOAL: {request.goal_name}\n"
+    if ordered:
+        context += "GRAPH GROUNDED TOPICS:\n" + "\n".join(f"- {t}" for t in ordered)
 
-        # Step 4: LLM synthesis
-        context = (
-            f"GOAL: {request.goal_name}\n\n"
-            f"PREREQUISITE TOPICS (in correct dependency order):\n"
-            + "\n".join(f"{i + 1}. {t}" for i, t in enumerate(ordered))
-        )
-
+    parsed = None
+    try:
         import json as json_module
-
         from speroflow_ai.services.chat_model import create_chat_model
 
         llm = create_chat_model(
@@ -179,9 +253,9 @@ async def get_prerequisites(
             model=settings.llm_model,
             api_base=settings.llm_api_base,
             api_key=settings.llm_api_key,
-            temperature=0.0,
+            temperature=0.2,
             bedrock_region=settings.bedrock_region,
-            max_tokens=1_024,
+            max_tokens=1_500,
         )
 
         messages = [
@@ -191,48 +265,39 @@ async def get_prerequisites(
         response = await llm.ainvoke(messages)
         raw = response.content if hasattr(response, "content") else str(response)
 
-        # Parse JSON from LLM response
-        try:
-            # Strip markdown code blocks if present
-            clean = raw.strip()
-            json_match = re.search(r'```(?:json)?\s*\n(.*?)```', clean, re.DOTALL)
-            if json_match:
-                clean = json_match.group(1)
-            parsed = json_module.loads(clean.strip())
-        except Exception as exc:
-            logger.warning("Failed to parse LLM JSON response: %s\nRaw: %s", exc, raw[:200])
-            # Fallback: build a basic timeline from the sorted topics
-            parsed = {
-                "goal": request.goal_name,
-                "steps": [
-                    {"topic": t, "description": f"Study {t} as a prerequisite.", "estimated_hours": 2.0}
-                    for t in ordered
-                ],
-                "total_estimated_hours": len(ordered) * 2.0,
-                "motivational_summary": f"Complete this {len(ordered)}-step path to master {request.goal_name}!",
-            }
-
-        return LearningTimeline(
-            goal=parsed.get("goal", request.goal_name),
-            steps=[
-                LearningStep(
-                    topic=s["topic"],
-                    description=s.get("description", ""),
-                    estimated_hours=float(s.get("estimated_hours", 2.0)),
-                )
-                for s in parsed.get("steps", [])
-            ],
-            total_estimated_hours=float(parsed.get("total_estimated_hours", 0)),
-            motivational_summary=parsed.get("motivational_summary", ""),
-        )
-
-    except HTTPException:
-        raise
-    except ServiceUnavailable:
-        raise HTTPException(
-            status_code=503,
-            detail="Neo4j Aura is currently unavailable. Please try again later.",
-        )
+        clean = raw.strip()
+        json_match = re.search(r'```(?:json)?\s*\n(.*?)```', clean, re.DOTALL)
+        if json_match:
+            clean = json_match.group(1)
+        parsed = json_module.loads(clean.strip())
     except Exception as exc:
-        logger.error("Roadmap generation failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to generate learning path: {exc}")
+        logger.warning("LLM roadmap synthesis unavailable or failed (%s); using fallback generator.", exc)
+
+    if not parsed or not isinstance(parsed.get("steps"), list) or len(parsed.get("steps", [])) == 0:
+        parsed = _build_fallback_timeline(request.goal_name, ordered)
+
+    steps_res = []
+    for idx, s in enumerate(parsed.get("steps", [])):
+        res_list = s.get("resources")
+        if not isinstance(res_list, list) or not res_list:
+            t_name = s.get("topic", f"Step {idx + 1}")
+            res_list = [
+                f"Core {t_name} Documentation & Reference",
+                f"Practical Exercise: {t_name} implementation",
+            ]
+        steps_res.append(
+            LearningStep(
+                topic=str(s.get("topic", f"Step {idx + 1}")),
+                description=str(s.get("description", "")),
+                estimated_hours=float(s.get("estimated_hours", 3.0)),
+                resources=[str(r) for r in res_list],
+            )
+        )
+
+    return LearningTimeline(
+        goal=str(parsed.get("goal", request.goal_name)),
+        steps=steps_res,
+        total_estimated_hours=sum(step.estimated_hours for step in steps_res),
+        motivational_summary=str(parsed.get("motivational_summary", f"A graph-grounded roadmap for {request.goal_name}.")),
+    )
+

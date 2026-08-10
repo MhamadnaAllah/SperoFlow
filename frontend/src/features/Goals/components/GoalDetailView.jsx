@@ -57,26 +57,48 @@ function MilestoneRow({ busy, milestone, onStateChange }) {
 
 function RoadmapReview({ busy, onApprove, onCancel, proposal }) {
   return (
-    <section className="border-y border-primary/20 bg-primary/5 py-5">
-      <div className="flex flex-col gap-4 px-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+    <section className="rounded-2xl border border-primary/30 bg-primary/5 p-6 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase text-primary">GraphRAG proposal</p>
-          <h2 className="mt-1 text-lg font-bold text-on-surface">Review this roadmap before it is added</h2>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary font-bold">auto_awesome</span>
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">GraphRAG Roadmap Proposal</p>
+          </div>
+          <h2 className="mt-1 text-xl font-bold text-on-surface">Review Interactive Learning Path</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">{proposal.roadmap.summary}</p>
         </div>
         <div className="flex flex-shrink-0 gap-2">
-          <button className="rounded-lg border border-outline-variant/40 px-3 py-2 text-sm font-bold text-on-surface hover:bg-white disabled:opacity-50" disabled={busy} onClick={() => onCancel(proposal.proposal)} type="button">Cancel</button>
-          <button className="rounded-lg bg-primary px-3 py-2 text-sm font-bold text-on-primary disabled:opacity-50" disabled={busy} onClick={() => onApprove(proposal.proposal)} type="button">Approve</button>
+          <button className="rounded-lg border border-outline-variant/40 bg-white px-4 py-2 text-sm font-bold text-on-surface hover:bg-surface-container disabled:opacity-50" disabled={busy} onClick={() => onCancel(proposal.proposal)} type="button">Cancel</button>
+          <button className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary shadow-sm hover:bg-primary-dim disabled:opacity-50" disabled={busy} onClick={() => onApprove(proposal.proposal)} type="button">
+            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>check_circle</span>
+            Approve Roadmap
+          </button>
         </div>
       </div>
-      <ol className="mt-5 divide-y divide-primary/15 border-t border-primary/15 px-4 sm:px-5">
-        {proposal.roadmap.steps.map((step, index) => <li className="flex gap-3 py-4" key={step.sortOrder + "-" + step.title}>
-          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-on-primary">{index + 1}</span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="text-sm font-bold text-on-surface">{step.title}</h3>{step.estimatedHours !== null && <span className="text-xs font-semibold text-on-surface-variant">{step.estimatedHours}h</span>}</div>
-            {step.description && <p className="mt-1 text-sm leading-relaxed text-on-surface-variant">{step.description}</p>}
-          </div>
-        </li>)}
+      <ol className="mt-6 divide-y divide-primary/15 border-t border-primary/15">
+        {proposal.roadmap.steps.map((step, index) => (
+          <li className="flex gap-4 py-4" key={step.sortOrder + "-" + step.title}>
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-bold text-on-primary shadow-sm">{index + 1}</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="text-base font-bold text-on-surface">{step.title}</h3>
+                {step.estimatedHours !== null && <span className="rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{step.estimatedHours}h</span>}
+              </div>
+              {step.description && <p className="mt-1.5 text-sm leading-relaxed text-on-surface-variant">{step.description}</p>}
+              {step.resources?.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase text-on-surface-variant">Resources & Practices:</span>
+                  {step.resources.map((res, rIdx) => (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-white border border-outline-variant/30 px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs" key={rIdx}>
+                      <span className="material-symbols-outlined text-primary" style={{ fontSize: "14px" }}>menu_book</span>
+                      {res}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
       </ol>
     </section>
   );
@@ -270,7 +292,26 @@ export default function GoalDetailView() {
           </div>
           {addingMilestone && <div className="mt-4"><MilestoneForm busy={busy} onCancel={() => setAddingMilestone(false)} onSave={addMilestone} /></div>}
           <div className="mt-4 border-t border-outline-variant/20">
-            {milestones.length > 0 ? milestones.map((milestone) => <MilestoneRow busy={busy} key={milestone.id} milestone={milestone} onStateChange={updateMilestoneState} />) : <p className="py-10 text-sm text-on-surface-variant">Generate a roadmap or add the first milestone yourself.</p>}
+            {milestones.length > 0 ? (
+              milestones.map((milestone) => <MilestoneRow busy={busy} key={milestone.id} milestone={milestone} onStateChange={updateMilestoneState} />)
+            ) : (
+              <div className="my-6 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-8 text-center">
+                <span className="material-symbols-outlined text-primary" style={{ fontSize: "36px" }}>account_tree</span>
+                <h3 className="mt-2 text-base font-bold text-on-surface">No roadmap steps yet</h3>
+                <p className="mt-1 max-w-md mx-auto text-xs text-on-surface-variant leading-relaxed">
+                  Use SperoFlow's Hybrid GraphRAG engine to generate a complete, step-by-step learning roadmap with hours and curated resources for <strong>"{goal.title}"</strong>.
+                </p>
+                <button
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary shadow-sm hover:bg-primary-dim disabled:opacity-50 transition"
+                  disabled={busy || goal.state !== "active" || Boolean(roadmapProposal)}
+                  onClick={createRoadmap}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>auto_awesome</span>
+                  {busy ? "Generating Roadmap..." : "Generate GraphRAG Roadmap"}
+                </button>
+              </div>
+            )}
           </div>
         </section>
 

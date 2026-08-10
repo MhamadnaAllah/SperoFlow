@@ -516,11 +516,17 @@ public static partial class ApiEndpoints
 
                         foreach (var step in roadmap.Steps.OrderBy(step => step.SortOrder).ThenBy(step => step.Title))
                         {
+                            var desc = step.Description;
+                            if (step.Resources != null && step.Resources.Count > 0)
+                            {
+                                var resText = "\n\nResources:\n" + string.Join("\n", step.Resources.Select(r => $"• {r}"));
+                                desc = string.IsNullOrWhiteSpace(desc) ? resText.TrimStart() : (desc + resText);
+                            }
                             db.GoalMilestones.Add(new GoalMilestone(
                                 currentUser.UserId,
                                 goal.Id,
                                 step.Title,
-                                step.Description,
+                                desc,
                                 step.EstimatedHours,
                                 step.SortOrder));
                         }

@@ -613,7 +613,8 @@ public static partial class ApiEndpoints
                     step.SortOrder,
                     step.Title,
                     step.Description,
-                    step.EstimatedHours)).ToArray()));
+                    step.EstimatedHours,
+                    step.Resources)).ToArray()));
     }
 
     private static GoalRoadmapContentPayload ParseGoalRoadmap(JsonElement root)
@@ -670,11 +671,14 @@ public static partial class ApiEndpoints
                 estimatedHours = null;
             }
 
+            var resources = GetStringArray(value, "resources");
+
             steps.Add(new GoalRoadmapStepPayload(
                 steps.Count + 1_000,
                 title,
                 string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-                estimatedHours));
+                estimatedHours,
+                resources));
             if (steps.Count == 20)
             {
                 break;
@@ -685,6 +689,28 @@ public static partial class ApiEndpoints
             summary,
             totalHours is < 0 or > 200_000 ? null : totalHours,
             steps);
+    }
+
+    private static IReadOnlyList<string>? GetStringArray(JsonElement value, string name)
+    {
+        if (!value.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var list = new List<string>();
+        foreach (var item in property.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                var str = item.GetString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(str))
+                {
+                    list.Add(str.Length > 500 ? str[..500] : str);
+                }
+            }
+        }
+        return list.Count > 0 ? list : null;
     }
 
     private static string? GetText(JsonElement value, string name) =>
@@ -715,5 +741,6 @@ public static partial class ApiEndpoints
         int SortOrder,
         string Title,
         string? Description,
-        decimal? EstimatedHours);
+        decimal? EstimatedHours,
+        IReadOnlyList<string>? Resources = null);
 }

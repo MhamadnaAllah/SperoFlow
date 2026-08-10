@@ -161,6 +161,11 @@ export default function GoalsView() {
       });
       setGoals((current) => [...current, goal]);
       setCreating(false);
+      try {
+        await goalsApi.proposeRoadmap(goal.id);
+      } catch (err) {
+        console.warn("Auto-roadmap proposal deferred to goal page:", err);
+      }
       router.push("/goals/" + goal.id);
     } catch (error) {
       setNotice({ type: "error", message: messageFrom(error, "Unable to create the goal.") });

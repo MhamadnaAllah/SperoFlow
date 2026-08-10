@@ -172,6 +172,7 @@ export function mapGoalRoadmapProposalDto(value) {
           title: text(item.title, label + " title"),
           description: optionalText(item.description, label + " description"),
           estimatedHours: optionalNumber(item.estimatedHours, label + " estimatedHours"),
+          resources: Array.isArray(item.resources) ? item.resources.filter((r) => typeof r === "string") : [],
         };
       }),
     },

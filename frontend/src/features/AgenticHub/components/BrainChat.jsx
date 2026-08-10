@@ -131,9 +131,75 @@ export default function BrainChat({ defaultOpen = false }) {
           </header>
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4" ref={scrollRef}>
-            {messages.length === 0 && <div className="flex h-full flex-col items-center justify-center px-6 text-center"><span className="material-symbols-outlined text-primary/35" style={{ fontSize: "42px" }}>account_tree</span><p className="mt-3 text-sm font-semibold text-on-surface">Ask about your knowledge</p><p className="mt-1 text-xs leading-relaxed text-on-surface-variant">Select one or more assigned datasets to search them. Otherwise, your question uses the roadmap graph.</p></div>}
-            {messages.map((message) => <article className={`max-w-[90%] rounded-lg px-3 py-2.5 text-sm leading-relaxed ${message.role === "user" ? "ml-auto bg-primary text-on-primary" : "border border-outline-variant/20 bg-surface-container-low text-on-surface"}`} key={message.id}><p className="whitespace-pre-wrap">{message.content}</p>{message.scope && <p className="mt-1 text-[10px] opacity-75">{message.scope}</p>}{message.sources?.length > 0 && <div className="mt-2 border-t border-outline-variant/20 pt-2 text-[11px] text-on-surface-variant">{message.sources.slice(0, 3).map((source, index) => <p key={`${sourceLabel(source, index)}-${index}`}>{sourceLabel(source, index)}</p>)}</div>}</article>)}
-            {loading && <div className="flex w-fit items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-bold text-on-surface-variant"><span className="material-symbols-outlined animate-spin" style={{ fontSize: "16px" }}>progress_activity</span>Searching</div>}
+            {messages.length === 0 && <div className="flex h-full flex-col items-center justify-center px-6 text-center"><span className="material-symbols-outlined text-primary/35" style={{ fontSize: "42px" }}>account_tree</span><p className="mt-3 text-sm font-semibold text-on-surface">Interactive Roadmap & GraphRAG</p><p className="mt-1 text-xs leading-relaxed text-on-surface-variant">Type any goal or technology (e.g. "C++", "AI Engineering", "React") to generate a step-by-step interactive roadmap with resources!</p></div>}
+            {messages.map((message) => {
+              const isUser = message.role === "user";
+              return (
+                <article className={`max-w-[95%] rounded-xl px-3.5 py-3 text-sm leading-relaxed ${isUser ? "ml-auto bg-primary text-on-primary" : "border border-outline-variant/30 bg-surface-container-low text-on-surface shadow-sm"}`} key={message.id}>
+                  {isUser ? (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  ) : (
+                    <div>
+                      <div className="prose prose-sm max-w-none text-on-surface">
+                        {message.content.split("\n").map((line, idx) => {
+                          if (line.startsWith("### ")) {
+                            return <h3 className="mt-2 text-base font-bold text-primary flex items-center gap-1.5" key={idx}>{line.replace("### ", "")}</h3>;
+                          }
+                          if (line.startsWith("#### ")) {
+                            return <h4 className="mt-3 text-sm font-bold text-on-surface border-b border-outline-variant/20 pb-1" key={idx}>{line.replace("#### ", "")}</h4>;
+                          }
+                          if (line.startsWith("**Objective:**") || line.startsWith("**Recommended Resources") || line.startsWith("**Key Concepts")) {
+                            return <p className="mt-1 font-semibold text-xs text-on-surface-variant" key={idx}>{line.replace(/\*\*/g, "")}</p>;
+                          }
+                          if (line.startsWith("- ")) {
+                            return <div className="ml-2 mt-0.5 text-xs text-on-surface flex items-start gap-1" key={idx}><span className="text-primary font-bold">•</span><span>{line.replace("- ", "")}</span></div>;
+                          }
+                          return line.trim() ? <p className="mt-1 text-xs leading-relaxed text-on-surface" key={idx}>{line}</p> : <div className="h-1" key={idx} />;
+                        })}
+                      </div>
+
+                      {/* Interactive Import as Goal Button */}
+                      {!isUser && (
+                        <div className="mt-3 border-t border-outline-variant/20 pt-2.5 flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-on-surface-variant">GraphRAG Roadmap</span>
+                          <button
+                            className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary hover:text-on-primary transition"
+                            onClick={async () => {
+                              try {
+                                const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+                                const goalTitle = lastUserMsg?.content || "New Roadmap Goal";
+                                const newGoal = await goalsApi.create({
+                                  title: goalTitle.length > 200 ? goalTitle.slice(0, 200) : goalTitle,
+                                  description: message.content.slice(0, 4000),
+                                  lifeArea: "learning",
+                                });
+                                void goalsApi.proposeRoadmap(newGoal.id);
+                                window.location.href = `/goals/${newGoal.id}`;
+                              } catch (e) {
+                                setError("Could not import as goal: " + (e.message || e));
+                              }
+                            }}
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>add_location_alt</span>
+                            Import as Goal
+                          </button>
+                        </div>
+                      )}
+
+                      {message.sources?.length > 0 && (
+                        <div className="mt-2 border-t border-outline-variant/20 pt-2 text-[11px] text-on-surface-variant">
+                          {message.sources.slice(0, 3).map((source, index) => (
+                            <p key={`${sourceLabel(source, index)}-${index}`}>{sourceLabel(source, index)}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+            {loading && <div className="flex w-fit items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-bold text-on-surface-variant"><span className="material-symbols-outlined animate-spin" style={{ fontSize: "16px" }}>progress_activity</span>Searching & Generating Roadmap</div>}
             {error && <p className="rounded-lg border border-error/20 bg-error/10 px-3 py-2 text-xs font-semibold text-error">{error}</p>}
           </div>
 

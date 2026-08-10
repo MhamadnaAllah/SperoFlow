@@ -113,6 +113,7 @@ class LearningStep(BaseModel):
     topic: str
     description: str
     estimated_hours: float
+    resources: list[str] = Field(default_factory=list)
 
 
 class LearningTimeline(BaseModel):
