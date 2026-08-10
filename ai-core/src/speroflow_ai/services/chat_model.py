@@ -43,8 +43,14 @@ def create_chat_model(
                 "Install the ai-api requirements."
             ) from exc
 
+        # Normalize model identifier for AWS Bedrock if needed
+        bedrock_model = normalized_model
+        if "gemma" in normalized_model.casefold() or "google" in normalized_model.casefold():
+            # AWS Bedrock does not support google.gemma model IDs directly; map to Bedrock model
+            bedrock_model = "us.amazon.nova-pro-v1:0"
+
         kwargs: dict[str, Any] = {
-            "model": normalized_model,
+            "model": bedrock_model,
             "region_name": bedrock_region,
             "temperature": temperature,
         }

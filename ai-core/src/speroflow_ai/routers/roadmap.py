@@ -136,62 +136,168 @@ def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[st
 
 
 def _build_fallback_timeline(goal_name: str, topics: list[str]) -> dict[str, Any]:
-    cleaned = _clean_topic_name(goal_name)
-    title_case = cleaned.title()
+    cleaned = _clean_topic_name(goal_name).lower()
+    title_case = _clean_topic_name(goal_name).title()
 
-    # Always generate detailed, goal-specific steps
-    steps = [
-        {
-            "topic": f"1. Core Foundations & Environment Setup for {title_case}",
-            "description": f"Master foundational principles, toolchain setup, syntax, and essential concepts of {cleaned}.",
-            "estimated_hours": 4.0,
-            "resources": [
-                f"Official {title_case} Documentation & Getting Started Guide",
-                f"CLI & IDE Toolchain Configuration for {title_case}",
-                f"Hands-on Hello World & Core Syntax Exercises",
-            ],
-        },
-        {
-            "topic": f"2. Essential Architecture & Core Building Blocks",
-            "description": f"Understand structural paradigms, core data structures, memory management, and design patterns for {cleaned}.",
-            "estimated_hours": 6.0,
-            "resources": [
-                f"{title_case} Architecture & Core API Specifications",
-                "Deep-dive Code Examples & Common Patterns",
-                "Unit Testing & Error Handling Best Practices",
-            ],
-        },
-        {
-            "topic": f"3. Advanced Mechanics & Framework Ecosystem",
-            "description": f"Explore ecosystem libraries, state management, asynchronous operations, and performance tuning for {cleaned}.",
-            "estimated_hours": 8.0,
-            "resources": [
-                f"Standard Library & Top Ecosystem Packages for {title_case}",
-                "Profiling & Performance Optimization Guides",
-                "Security & Production Readiness Checklist",
-            ],
-        },
-        {
-            "topic": f"4. Integration, Testing & System Design",
-            "description": f"Implement complex workflows, API integrations, databases, and multi-component system architectures.",
-            "estimated_hours": 8.0,
-            "resources": [
-                f"System Design & Component Architecture Spec for {title_case}",
-                "Integration Testing & Automated Test Suites",
-                "CI/CD Pipeline & Build System Setup",
-            ],
-        },
-        {
-            "topic": f"5. Capstone Portfolio Application & Deployment",
-            "description": f"Synthesize all concepts by building, optimizing, and deploying a complete production-grade {cleaned} project.",
-            "estimated_hours": 12.0,
-            "resources": [
-                f"Full-stack {title_case} Capstone Project Specification",
-                "Production Deployment & Hosting Documentation",
-                "Code Review & Portfolio Presentation Checklist",
-            ],
-        },
-    ]
+    if "game" in cleaned:
+        steps = [
+            {
+                "topic": "1. C++ & C# Fundamentals for Game Engines",
+                "description": "Master memory management, pointers, object-oriented design patterns, and CLI toolchains essential for game development.",
+                "estimated_hours": 8.0,
+                "resources": [
+                    "https://learn.microsoft.com/en-us/dotnet/csharp/ - C# Official Language & .NET Guide",
+                    "https://en.cppreference.com/w/ - Modern C++ Language & STL Reference",
+                    "https://learncpp.com - Interactive C++ Game Programming Tutorials",
+                ],
+            },
+            {
+                "topic": "2. Game Loop, Mathematics & Vector Physics",
+                "description": "Implement frame timing, delta time, 2D/3D linear algebra, vector dot/cross products, matrices, and basic collision detection.",
+                "estimated_hours": 10.0,
+                "resources": [
+                    "https://gameprogrammingpatterns.com - Game Programming Patterns & Game Loop Architecture",
+                    "https://khanacademy.org/math/linear-algebra - Linear Algebra & Vectors for Game Physics",
+                    "https://gafferongames.com/post/fix_your_timestep/ - Game Loop & Physics Timestep Integration",
+                ],
+            },
+            {
+                "topic": "3. Game Engines: Unity & Unreal Engine Setup",
+                "description": "Explore GameObjects, Prefabs, Scene Graphs, Component-Based Architecture, Blueprinting, and Physics Controllers.",
+                "estimated_hours": 12.0,
+                "resources": [
+                    "https://docs.unity3d.com/Manual/ - Unity Engine Developer Manual & Scripting Reference",
+                    "https://dev.epicgames.com/documentation/en-us/unreal-engine/ - Unreal Engine C++ & Blueprint Guide",
+                    "https://learn.unity.com - Unity Learn Pathways & Hands-on Projects",
+                ],
+            },
+            {
+                "topic": "4. Shaders, Graphics Pipeline & Audio Systems",
+                "description": "Understand HLSL/GLSL shaders, vertex/fragment processing, lighting models, material graphs, and spatial 3D audio.",
+                "estimated_hours": 10.0,
+                "resources": [
+                    "https://learnopengl.com - Learn OpenGL & Graphics Pipeline Foundations",
+                    "https://thebookofshaders.com - The Book of Shaders & Fragment Processing Guide",
+                    "https://fmod.com/docs/ - FMOD & Spatial Audio Integration for Games",
+                ],
+            },
+            {
+                "topic": "5. AI Behaviors, Pathfinding & Capstone Game Release",
+                "description": "Build finite state machines, A* pathfinding, enemy AI behaviors, dynamic UI, and publish a complete playable game build.",
+                "estimated_hours": 15.0,
+                "resources": [
+                    "https://redblobgames.com/pathfinding/a-star/introduction.html - A* Pathfinding & Grid Algorithms",
+                    "https://itch.io/docs/creators - Itch.io Game Publishing & Build Distribution",
+                    "https://unity.com/resources/capstone - Complete 2D/3D Game Capstone Specification",
+                ],
+            },
+        ]
+    elif "ai" in cleaned or "machine" in cleaned or "model" in cleaned or "data" in cleaned:
+        steps = [
+            {
+                "topic": "1. Python, Math & Data Engineering Foundations",
+                "description": "Master Python data science stack (NumPy, Pandas), linear algebra, probability, calculus, and matrix operations.",
+                "estimated_hours": 8.0,
+                "resources": [
+                    "https://numpy.org/doc/stable/ - NumPy Fundamental Array & Matrix Operations",
+                    "https://pandas.pydata.org/docs/ - Pandas Data Manipulation & Feature Engineering",
+                    "https://scikit-learn.org/stable/ - Scikit-Learn Machine Learning Architecture",
+                ],
+            },
+            {
+                "topic": "2. Deep Learning Frameworks (PyTorch & CUDA)",
+                "description": "Build neural networks, backpropagation, gradient descent, loss functions, CNNs, RNNs, and GPU acceleration in PyTorch.",
+                "estimated_hours": 12.0,
+                "resources": [
+                    "https://pytorch.org/tutorials/ - PyTorch Official Deep Learning Tutorials",
+                    "https://deeplearning.ai - Deep Learning Specialization & Neural Networks",
+                    "https://huggingface.co/docs - HuggingFace Model Hub & Transformer Pipeline",
+                ],
+            },
+            {
+                "topic": "3. Large Language Models, RAG & Vector Databases",
+                "description": "Implement vector embeddings, Neo4j GraphRAG, hybrid retrieval, prompt engineering, and LLM orchestration with LangChain.",
+                "estimated_hours": 12.0,
+                "resources": [
+                    "https://python.langchain.com/docs/ - LangChain LLM Application Framework",
+                    "https://neo4j.com/docs/graph-data-science/ - Neo4j Knowledge Graph & Vector Search",
+                    "https://pinecone.io/learn/ - Vector Indexing & Hybrid RAG Architecture",
+                ],
+            },
+            {
+                "topic": "4. Model Fine-Tuning & Quantization (LoRA / QLoRA)",
+                "description": "Fine-tune open-weight models (Llama, Gemma) using PEFT, LoRA, Unsloth, DPO, and GGML/GGUF quantization for local deployment.",
+                "estimated_hours": 10.0,
+                "resources": [
+                    "https://huggingface.co/docs/peft/ - Parameter-Efficient Fine-Tuning (PEFT/LoRA)",
+                    "https://unsloth.ai/docs - Unsloth Fast Model Fine-Tuning & Quantization",
+                    "https://ollama.com/blog - Local LLM Inference & GGUF Model Deployment",
+                ],
+            },
+            {
+                "topic": "5. MLOps, Async API & Production Deployment",
+                "description": "Deploy AI services with FastAPI, Docker, Ray Serve, monitoring, drift detection, and CI/CD pipelines.",
+                "estimated_hours": 15.0,
+                "resources": [
+                    "https://fastapi.tiangolo.com - FastAPI Production Async Web Services",
+                    "https://mlflow.org/docs/latest/ - MLflow Model Lifecycle & Experiment Tracking",
+                    "https://docker.com/get-started/ - Containerizing AI & LLM Worker Pipelines",
+                ],
+            },
+        ]
+    else:
+        steps = [
+            {
+                "topic": f"1. Core Foundations & Toolchain Setup for {title_case}",
+                "description": f"Master foundational principles, CLI configuration, syntax, and essential concepts of {cleaned}.",
+                "estimated_hours": 5.0,
+                "resources": [
+                    f"https://www.google.com/search?q=official+{cleaned}+documentation - Official {title_case} Documentation",
+                    f"https://www.google.com/search?q={cleaned}+cli+setup - CLI & Environment Configuration",
+                    f"https://www.google.com/search?q={cleaned}+getting+started - Hands-on Getting Started Exercises",
+                ],
+            },
+            {
+                "topic": f"2. Essential Architecture & Core Patterns",
+                "description": f"Understand structural paradigms, data models, memory management, and design patterns for {cleaned}.",
+                "estimated_hours": 8.0,
+                "resources": [
+                    f"https://www.google.com/search?q={cleaned}+architecture+guide - {title_case} Architecture & API Specs",
+                    f"https://www.google.com/search?q={cleaned}+design+patterns - Deep-dive Code Examples & Patterns",
+                    f"https://www.google.com/search?q={cleaned}+unit+testing - Unit Testing & Error Handling",
+                ],
+            },
+            {
+                "topic": f"3. Advanced Framework Ecosystem & Optimization",
+                "description": f"Explore ecosystem packages, state management, asynchronous operations, and performance profiling.",
+                "estimated_hours": 10.0,
+                "resources": [
+                    f"https://www.google.com/search?q={cleaned}+packages+libraries - Popular Packages & Ecosystem Tools",
+                    f"https://www.google.com/search?q={cleaned}+performance+optimization - Performance Benchmarking",
+                    f"https://www.google.com/search?q={cleaned}+security+best+practices - Security & Best Practice Checklist",
+                ],
+            },
+            {
+                "topic": f"4. System Design, Integration & Testing",
+                "description": f"Implement complex workflows, API integrations, database schemas, and multi-service architectures.",
+                "estimated_hours": 10.0,
+                "resources": [
+                    f"https://www.google.com/search?q={cleaned}+system+design - System Design Specification for {title_case}",
+                    f"https://www.google.com/search?q={cleaned}+integration+testing - Automated Test Suites",
+                    f"https://www.google.com/search?q={cleaned}+cicd+pipeline - CI/CD Pipeline & Build System Setup",
+                ],
+            },
+            {
+                "topic": f"5. Capstone Portfolio Application & Production Deployment",
+                "description": f"Synthesize all concepts by building, testing, and deploying a complete production-grade {cleaned} project.",
+                "estimated_hours": 15.0,
+                "resources": [
+                    f"https://www.google.com/search?q={cleaned}+capstone+project - Capstone Project Specification",
+                    f"https://www.google.com/search?q={cleaned}+deployment+guide - Production Deployment Documentation",
+                    f"https://www.google.com/search?q={cleaned}+code+review - Code Review & Portfolio Checklist",
+                ],
+            },
+        ]
 
     total_h = sum(float(s["estimated_hours"]) for s in steps)
     return {

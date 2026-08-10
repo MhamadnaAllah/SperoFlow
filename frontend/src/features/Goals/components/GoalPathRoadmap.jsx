@@ -126,13 +126,24 @@ export default function GoalPathRoadmap({ milestones = [], goal = null, busy = f
 
                 {/* Resources Badges */}
                 {node.resources?.length > 0 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    {node.resources.slice(0, 2).map((res, rIdx) => (
-                      <span key={rIdx} className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                        <span className="material-symbols-outlined text-blue-600" style={{ fontSize: "12px" }}>menu_book</span>
-                        {res}
-                      </span>
-                    ))}
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {node.resources.slice(0, 2).map((res, rIdx) => {
+                      const urlMatch = String(res).match(/(https?:\/\/[^\s]+)/);
+                      const url = urlMatch ? urlMatch[1] : `https://www.google.com/search?q=${encodeURIComponent(res)}`;
+                      const label = urlMatch ? String(res).replace(urlMatch[1], "").replace(/^[\s\-–—:]+/, "").trim() || urlMatch[1] : res;
+                      return (
+                        <a
+                          key={rIdx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-md bg-blue-50/80 border border-blue-200 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-600 hover:text-white transition"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>open_in_new</span>
+                          <span className="truncate max-w-[140px]">{label}</span>
+                        </a>
+                      );
+                    })}
                     {node.resources.length > 2 && (
                       <span className="text-[10px] font-bold text-slate-400">+{node.resources.length - 2} more</span>
                     )}
