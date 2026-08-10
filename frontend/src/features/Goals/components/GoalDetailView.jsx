@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 
 import { aiProposalsApi, ApiError, goalsApi, tasksApi } from "@/lib/api/client";
 
+import GoalPathRoadmap from "./GoalPathRoadmap";
+
 function messageFrom(error, fallback) {
   return error instanceof ApiError ? error.message : fallback;
 }
@@ -37,34 +39,16 @@ function milestonePayload(milestone, state) {
   };
 }
 
-function MilestoneRow({ busy, milestone, onStateChange }) {
-  const complete = milestone.state === "completed";
-  return (
-    <article className="flex items-start gap-3 border-b border-outline-variant/20 py-4 last:border-b-0">
-      <button aria-label={(complete ? "Reopen " : "Complete ") + milestone.title} className={"mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border " + (complete ? "border-secondary bg-secondary text-on-primary" : "border-outline-variant/60 text-transparent hover:border-primary")} disabled={busy || milestone.state === "archived"} onClick={() => onStateChange(milestone, complete ? "pending" : "completed")} type="button">
-        <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>check</span>
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <h3 className={"text-sm font-bold " + (complete ? "text-on-surface-variant line-through" : "text-on-surface")}>{milestone.title}</h3>
-          {milestone.estimatedHours !== null && <span className="rounded-md bg-surface-container px-2 py-1 text-xs font-bold text-on-surface-variant">{milestone.estimatedHours}h</span>}
-        </div>
-        {milestone.description && <p className="mt-1.5 text-sm leading-relaxed text-on-surface-variant">{milestone.description}</p>}
-      </div>
-    </article>
-  );
-}
-
-function RoadmapReview({ busy, onApprove, onCancel, proposal }) {
+function RoadmapReview({ busy, onApprove, onCancel, proposal, goal }) {
   return (
     <section className="rounded-2xl border border-primary/30 bg-primary/5 p-6 shadow-sm">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary font-bold">auto_awesome</span>
-            <p className="text-xs font-bold uppercase tracking-wider text-primary">GraphRAG Roadmap Proposal</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">GraphRAG Roadmap Proposal (google.gemma-4-31b)</p>
           </div>
-          <h2 className="mt-1 text-xl font-bold text-on-surface">Review Interactive Learning Path</h2>
+          <h2 className="mt-1 text-xl font-bold text-on-surface">Review Interactive Goal Path Roadmap</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">{proposal.roadmap.summary}</p>
         </div>
         <div className="flex flex-shrink-0 gap-2">
@@ -75,31 +59,9 @@ function RoadmapReview({ busy, onApprove, onCancel, proposal }) {
           </button>
         </div>
       </div>
-      <ol className="mt-6 divide-y divide-primary/15 border-t border-primary/15">
-        {proposal.roadmap.steps.map((step, index) => (
-          <li className="flex gap-4 py-4" key={step.sortOrder + "-" + step.title}>
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-bold text-on-primary shadow-sm">{index + 1}</span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <h3 className="text-base font-bold text-on-surface">{step.title}</h3>
-                {step.estimatedHours !== null && <span className="rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{step.estimatedHours}h</span>}
-              </div>
-              {step.description && <p className="mt-1.5 text-sm leading-relaxed text-on-surface-variant">{step.description}</p>}
-              {step.resources?.length > 0 && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase text-on-surface-variant">Resources & Practices:</span>
-                  {step.resources.map((res, rIdx) => (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-white border border-outline-variant/30 px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs" key={rIdx}>
-                      <span className="material-symbols-outlined text-primary" style={{ fontSize: "14px" }}>menu_book</span>
-                      {res}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
+      <div className="mt-4 border-t border-primary/15 pt-2">
+        <GoalPathRoadmap milestones={proposal.roadmap.steps} goal={goal} proposalMode={true} />
+      </div>
     </section>
   );
 }
@@ -282,18 +244,24 @@ export default function GoalDetailView() {
         <button aria-label="Dismiss notice" className="flex h-7 w-7 items-center justify-center" onClick={() => setNotice(null)} type="button"><span className="material-symbols-outlined" style={{ fontSize: "18px" }}>close</span></button>
       </div>}
 
-      {roadmapProposal && <div className="mt-6"><RoadmapReview busy={busy} onApprove={approveRoadmap} onCancel={cancelRoadmap} proposal={roadmapProposal} /></div>}
+      {roadmapProposal && <div className="mt-6"><RoadmapReview busy={busy} onApprove={approveRoadmap} onCancel={cancelRoadmap} proposal={roadmapProposal} goal={goal} /></div>}
 
       <main className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section>
           <div className="flex items-end justify-between gap-3">
-            <div><h2 className="text-lg font-bold text-on-surface">Milestones</h2><p className="mt-1 text-sm text-on-surface-variant">Complete the path one meaningful step at a time.</p></div>
+            <div><h2 className="text-lg font-bold text-on-surface">Interactive Goal Path Roadmap</h2><p className="mt-1 text-sm text-on-surface-variant">Follow the nodes to progress through your graph-grounded learning path. Click any node to explore its detail page.</p></div>
             <button className="flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10 disabled:opacity-50" aria-label="Add milestone" disabled={busy || goal.state !== "active" || Boolean(roadmapProposal)} onClick={() => setAddingMilestone((value) => !value)} title="Add milestone" type="button"><span className="material-symbols-outlined">add</span></button>
           </div>
           {addingMilestone && <div className="mt-4"><MilestoneForm busy={busy} onCancel={() => setAddingMilestone(false)} onSave={addMilestone} /></div>}
           <div className="mt-4 border-t border-outline-variant/20">
             {milestones.length > 0 ? (
-              milestones.map((milestone) => <MilestoneRow busy={busy} key={milestone.id} milestone={milestone} onStateChange={updateMilestoneState} />)
+              <GoalPathRoadmap
+                milestones={milestones}
+                goal={goal}
+                busy={busy}
+                onStateChange={updateMilestoneState}
+                onTaskAdded={() => load()}
+              />
             ) : (
               <div className="my-6 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-8 text-center">
                 <span className="material-symbols-outlined text-primary" style={{ fontSize: "36px" }}>account_tree</span>
