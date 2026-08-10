@@ -691,7 +691,7 @@ public static partial class ApiEndpoints
             steps);
     }
 
-    private static IReadOnlyList<string>? GetStringArray(JsonElement value, string name)
+    private static List<string>? GetStringArray(JsonElement value, string name)
     {
         if (!value.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.Array)
         {
