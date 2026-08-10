@@ -192,14 +192,32 @@ export default function GoalsView() {
       <header className="flex flex-col gap-4 border-b border-outline-variant/20 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase text-primary">Direction</p>
-          <h1 className="mt-1 text-3xl font-bold text-on-surface">Goals</h1>
-          <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">Keep your most meaningful outcomes visible, then review graph-grounded roadmap suggestions before they change the plan.</p>
+          <h1 className="mt-1 text-3xl font-bold text-on-surface">GraphRAG Goal Roadmaps</h1>
+          <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
+            Create a goal to automatically generate an interactive, graph-grounded learning roadmap with steps, resources, and task checklists.
+          </p>
         </div>
-        <button className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-on-primary" onClick={() => setCreating((value) => !value)} type="button">
+        <button className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-on-primary shadow-sm hover:bg-blue-700 transition" onClick={() => setCreating((value) => !value)} type="button">
           <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>add</span>
           New goal
         </button>
       </header>
+
+      {/* Quick Topic Shortcuts */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-outline-variant/20 pb-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Quick Roadmaps:</span>
+        {["Rust Programming", "Frontend React Development", "C++ & Game Engine", "AI Engineering", "Cybersecurity"].map((quickTopic) => (
+          <button
+            key={quickTopic}
+            disabled={saving}
+            onClick={() => createGoal({ title: quickTopic, lifeArea: "personal", description: `Master ${quickTopic} with GraphRAG roadmap.` })}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition shadow-2xs disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+            <span>{quickTopic}</span>
+          </button>
+        ))}
+      </div>
 
       {notice && <div className={"mt-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium " + (notice.type === "error" ? "border-error/20 bg-error/10 text-error" : "border-secondary/20 bg-secondary/10 text-secondary")}>
         <span>{notice.message}</span>

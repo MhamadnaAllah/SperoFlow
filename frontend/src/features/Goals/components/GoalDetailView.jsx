@@ -120,6 +120,13 @@ export default function GoalDetailView() {
     void load();
   }, [load]);
 
+  // Auto-trigger GraphRAG Roadmap proposal if goal has no milestones and no active proposal
+  useEffect(() => {
+    if (!loading && goal && goal.state === "active" && milestones.length === 0 && !roadmapProposal && !busy) {
+      void createRoadmap();
+    }
+  }, [loading, goal, milestones.length, roadmapProposal, busy]);
+
   const remainingTasks = useMemo(() => linkedTasks.filter((task) => task.state !== "completed" && task.state !== "cancelled"), [linkedTasks]);
 
   const createRoadmap = async () => {
