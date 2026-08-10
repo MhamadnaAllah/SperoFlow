@@ -158,7 +158,8 @@ export const authApi = {
 
 export const projectsApi = {
   async list(filters = {}) {
-    return mapProjectListDto(await apiRequest(`/projects${queryString(filters)}`));
+    const params = { includeArchived: false, ...filters };
+    return mapProjectListDto(await apiRequest(`/projects${queryString(params)}`));
   },
   async get(id) {
     return mapProjectDto(await apiRequest(`/projects/${id}`));
@@ -212,7 +213,8 @@ export const goalsApi = {
 
 export const rolesApi = {
   list(filters = {}) {
-    return apiRequest(`/roles${queryString(filters)}`).then(mapLifeRoleListDto);
+    const params = { includeArchived: false, ...filters };
+    return apiRequest(`/roles${queryString(params)}`).then(mapLifeRoleListDto);
   },
   bootstrap() {
     return apiRequest("/roles/bootstrap", { method: "POST" }).then(mapLifeRoleListDto);
@@ -281,7 +283,8 @@ export const calendarApi = {
 
 export const habitsApi = {
   list(filters = {}) {
-    return apiRequest(`/habits${queryString(filters)}`);
+    const params = { includeArchived: false, ...filters };
+    return apiRequest(`/habits${queryString(params)}`);
   },
   create(input) {
     return apiRequest("/habits", { method: "POST", body: input });
