@@ -32,31 +32,39 @@ router = APIRouter(prefix="/api/roadmap", tags=["Roadmap Graph RAG"])
 
 SYSTEM_PROMPT = """You are an expert curriculum designer and AI Software Architect for SperoFlow.
 
-Your task is to create a comprehensive, highly detailed, step-by-step learning roadmap tailored specifically to a GOAL.
+Your task is to create a dynamic, highly specific, step-by-step learning roadmap tailored precisely to the user's GOAL and any GRAPH GROUNDED TOPICS provided.
 
-Guidelines:
-1. Divide the learning path into 5 to 8 logical, progressive, and highly specific steps for the target goal.
-2. Ensure every step topic is rich, detailed, and directly names core technologies, tools, design patterns, and architectures relevant to the goal.
+CRITICAL INSTRUCTIONS:
+1. NEVER output generic or hardcoded template steps.
+2. Generate 5 to 7 progressive, highly technical steps specific to the exact requested GOAL (e.g., for "frontend": HTML5/CSS3/JavaScript ES6+, React.js & Component State, Next.js App Router & SSR, State Management & Tailwind CSS, Web Performance & Deployment).
 3. For each step, provide:
-   - "topic": Clear, highly specific step title (e.g., "1. Game Loop Architecture & Math Fundamentals", "2. Physics Engines & Collision Systems")
-   - "description": Comprehensive objective detailing what key concepts to master and what to build
-   - "estimated_hours": Realistic study and hands-on practice time in hours (e.g., 5.0, 8.0, 12.0)
-   - "resources": A list of 3-4 actionable official docs, textbooks, interactive tutorials, or hands-on practice project specs
-4. Write an inspiring "motivational_summary" summarizing the learning journey.
+   - "topic": Clear, highly specific step title naming the exact tools, languages, or architectures.
+   - "description": Detailed objective outlining key concepts, APIs, and design patterns to master.
+   - "estimated_hours": Realistic study and practice time in hours (e.g., 6.0, 10.0, 14.0).
+   - "resources": A list of 3-4 real, actionable HTTPS documentation URLs or guide links (e.g., "https://developer.mozilla.org/ - MDN Web Docs for HTML/CSS", "https://react.dev/ - React Official Documentation & Hooks Guide").
+   - "subtasks": A list of 3-4 specific hands-on practice tasks for this step.
+4. Write an inspiring "motivational_summary" summarizing the journey.
 
 Respond ONLY as a valid JSON object matching this schema:
 {
-  "goal": "Goal Name",
+  "goal": "Target Goal Title",
   "steps": [
     {
-      "topic": "Step Title",
-      "description": "Clear, detailed step objective and overview.",
-      "estimated_hours": 6.0,
-      "resources": ["Official Documentation / Guide", "Key Practice Project", "Core Architecture Spec"]
+      "topic": "1. Specific Step Title",
+      "description": "Comprehensive objective and key concepts.",
+      "estimated_hours": 8.0,
+      "resources": [
+        "https://official-docs-url.org/ - Official Documentation Name",
+        "https://guide-url.org/ - Core Interactive Tutorial"
+      ],
+      "subtasks": [
+        "Specific hands-on work item 1",
+        "Specific hands-on work item 2"
+      ]
     }
   ],
-  "total_estimated_hours": 35.0,
-  "motivational_summary": "Motivational summary text..."
+  "total_estimated_hours": 45.0,
+  "motivational_summary": "Inspiring summary for target goal..."
 }
 """
 
@@ -67,7 +75,7 @@ def _clean_topic_name(raw: str) -> str:
     cleaned = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
     return cleaned if len(cleaned) >= 2 else text
 
-# ── Cypher Traversal ──────────────────────────────────────────────────────────
+# ── Cypher GraphRAG Traversal ──────────────────────────────────────────────────
 
 async def _fetch_prerequisite_subgraph(
     driver: AsyncDriver,
@@ -75,17 +83,18 @@ async def _fetch_prerequisite_subgraph(
 ) -> tuple[list[str], list[tuple[str, str]]]:
     topic = _clean_topic_name(goal_name)
     cypher = """
-        MATCH path = (prereq)-[:LEADS_TO|DEPENDS_ON|CONTAINS*1..10]->(goal)
-        WHERE (goal:Topic OR goal:Subtopic OR goal:Roadmap)
-          AND (toLower(goal.label_text) CONTAINS toLower($topic) OR toLower($topic) CONTAINS toLower(goal.label_text))
-          AND (prereq:Topic OR prereq:Subtopic OR prereq:Roadmap)
-          AND size(toLower(prereq.label_text)) > 3
-        UNWIND relationships(path) AS rel
-        WITH DISTINCT
-            startNode(rel).label_text AS source,
-            endNode(rel).label_text AS target
-        WHERE size(trim(source)) > 3 AND size(trim(target)) > 3
-        RETURN source, target
+        MATCH (n)
+        WHERE (n:Entity OR n:CBTConcept OR n:CBTDocument OR n:CBTSection OR n:Topic OR n:Subtopic OR n:Roadmap OR n:Node)
+          AND (
+            toLower(coalesce(n.name, n.title, n.label_text, '')) CONTAINS toLower($topic)
+            OR toLower($topic) CONTAINS toLower(coalesce(n.name, n.title, n.label_text, ''))
+          )
+        OPTIONAL MATCH (n)-[r:LEADS_TO|DEPENDS_ON|CONTAINS|MENTIONS|TEACHES|HAS_PREREQUISITE*1..2]-(related)
+        WITH coalesce(n.name, n.title, n.label_text, '') AS main_node,
+             coalesce(related.name, related.title, related.label_text, '') AS related_node
+        WHERE size(trim(main_node)) > 2
+        RETURN main_node AS source, related_node AS target
+        LIMIT 40
     """
     nodes: set[str] = set()
     edges: list[tuple[str, str]] = []
@@ -94,16 +103,16 @@ async def _fetch_prerequisite_subgraph(
         result = await session.run(cypher, topic=topic)
         records = await result.data()
         for record in records:
-            src, tgt = record["source"], record["target"]
-            if len(src.strip()) > 3 and len(tgt.strip()) > 3:
+            src = record.get("source", "").strip()
+            tgt = record.get("target", "").strip()
+            if len(src) > 2:
                 nodes.add(src)
+            if len(tgt) > 2:
                 nodes.add(tgt)
                 edges.append((src, tgt))
 
-    # Filtered topics list (exclude noise like 'R', 'P', 'MIN')
-    filtered_nodes = [n for n in nodes if len(n.strip()) > 3]
-
-    logger.info("Subgraph for '%s' (cleaned: '%s'): %d nodes, %d edges.", goal_name, topic, len(filtered_nodes), len(edges))
+    filtered_nodes = [n for n in nodes if len(n.strip()) > 2]
+    logger.info("GraphRAG Subgraph for '%s' (cleaned: '%s'): %d nodes, %d edges.", goal_name, topic, len(filtered_nodes), len(edges))
     return filtered_nodes, edges
 
 
@@ -136,168 +145,95 @@ def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[st
 
 
 def _build_fallback_timeline(goal_name: str, topics: list[str]) -> dict[str, Any]:
-    cleaned = _clean_topic_name(goal_name).lower()
-    title_case = _clean_topic_name(goal_name).title()
+    cleaned = _clean_topic_name(goal_name)
+    title_case = cleaned.title()
 
-    if "game" in cleaned:
-        steps = [
-            {
-                "topic": "1. C++ & C# Fundamentals for Game Engines",
-                "description": "Master memory management, pointers, object-oriented design patterns, and CLI toolchains essential for game development.",
-                "estimated_hours": 8.0,
-                "resources": [
-                    "https://learn.microsoft.com/en-us/dotnet/csharp/ - C# Official Language & .NET Guide",
-                    "https://en.cppreference.com/w/ - Modern C++ Language & STL Reference",
-                    "https://learncpp.com - Interactive C++ Game Programming Tutorials",
-                ],
-            },
-            {
-                "topic": "2. Game Loop, Mathematics & Vector Physics",
-                "description": "Implement frame timing, delta time, 2D/3D linear algebra, vector dot/cross products, matrices, and basic collision detection.",
-                "estimated_hours": 10.0,
-                "resources": [
-                    "https://gameprogrammingpatterns.com - Game Programming Patterns & Game Loop Architecture",
-                    "https://khanacademy.org/math/linear-algebra - Linear Algebra & Vectors for Game Physics",
-                    "https://gafferongames.com/post/fix_your_timestep/ - Game Loop & Physics Timestep Integration",
-                ],
-            },
-            {
-                "topic": "3. Game Engines: Unity & Unreal Engine Setup",
-                "description": "Explore GameObjects, Prefabs, Scene Graphs, Component-Based Architecture, Blueprinting, and Physics Controllers.",
-                "estimated_hours": 12.0,
-                "resources": [
-                    "https://docs.unity3d.com/Manual/ - Unity Engine Developer Manual & Scripting Reference",
-                    "https://dev.epicgames.com/documentation/en-us/unreal-engine/ - Unreal Engine C++ & Blueprint Guide",
-                    "https://learn.unity.com - Unity Learn Pathways & Hands-on Projects",
-                ],
-            },
-            {
-                "topic": "4. Shaders, Graphics Pipeline & Audio Systems",
-                "description": "Understand HLSL/GLSL shaders, vertex/fragment processing, lighting models, material graphs, and spatial 3D audio.",
-                "estimated_hours": 10.0,
-                "resources": [
-                    "https://learnopengl.com - Learn OpenGL & Graphics Pipeline Foundations",
-                    "https://thebookofshaders.com - The Book of Shaders & Fragment Processing Guide",
-                    "https://fmod.com/docs/ - FMOD & Spatial Audio Integration for Games",
-                ],
-            },
-            {
-                "topic": "5. AI Behaviors, Pathfinding & Capstone Game Release",
-                "description": "Build finite state machines, A* pathfinding, enemy AI behaviors, dynamic UI, and publish a complete playable game build.",
-                "estimated_hours": 15.0,
-                "resources": [
-                    "https://redblobgames.com/pathfinding/a-star/introduction.html - A* Pathfinding & Grid Algorithms",
-                    "https://itch.io/docs/creators - Itch.io Game Publishing & Build Distribution",
-                    "https://unity.com/resources/capstone - Complete 2D/3D Game Capstone Specification",
-                ],
-            },
-        ]
-    elif "ai" in cleaned or "machine" in cleaned or "model" in cleaned or "data" in cleaned:
-        steps = [
-            {
-                "topic": "1. Python, Math & Data Engineering Foundations",
-                "description": "Master Python data science stack (NumPy, Pandas), linear algebra, probability, calculus, and matrix operations.",
-                "estimated_hours": 8.0,
-                "resources": [
-                    "https://numpy.org/doc/stable/ - NumPy Fundamental Array & Matrix Operations",
-                    "https://pandas.pydata.org/docs/ - Pandas Data Manipulation & Feature Engineering",
-                    "https://scikit-learn.org/stable/ - Scikit-Learn Machine Learning Architecture",
-                ],
-            },
-            {
-                "topic": "2. Deep Learning Frameworks (PyTorch & CUDA)",
-                "description": "Build neural networks, backpropagation, gradient descent, loss functions, CNNs, RNNs, and GPU acceleration in PyTorch.",
-                "estimated_hours": 12.0,
-                "resources": [
-                    "https://pytorch.org/tutorials/ - PyTorch Official Deep Learning Tutorials",
-                    "https://deeplearning.ai - Deep Learning Specialization & Neural Networks",
-                    "https://huggingface.co/docs - HuggingFace Model Hub & Transformer Pipeline",
-                ],
-            },
-            {
-                "topic": "3. Large Language Models, RAG & Vector Databases",
-                "description": "Implement vector embeddings, Neo4j GraphRAG, hybrid retrieval, prompt engineering, and LLM orchestration with LangChain.",
-                "estimated_hours": 12.0,
-                "resources": [
-                    "https://python.langchain.com/docs/ - LangChain LLM Application Framework",
-                    "https://neo4j.com/docs/graph-data-science/ - Neo4j Knowledge Graph & Vector Search",
-                    "https://pinecone.io/learn/ - Vector Indexing & Hybrid RAG Architecture",
-                ],
-            },
-            {
-                "topic": "4. Model Fine-Tuning & Quantization (LoRA / QLoRA)",
-                "description": "Fine-tune open-weight models (Llama, Gemma) using PEFT, LoRA, Unsloth, DPO, and GGML/GGUF quantization for local deployment.",
-                "estimated_hours": 10.0,
-                "resources": [
-                    "https://huggingface.co/docs/peft/ - Parameter-Efficient Fine-Tuning (PEFT/LoRA)",
-                    "https://unsloth.ai/docs - Unsloth Fast Model Fine-Tuning & Quantization",
-                    "https://ollama.com/blog - Local LLM Inference & GGUF Model Deployment",
-                ],
-            },
-            {
-                "topic": "5. MLOps, Async API & Production Deployment",
-                "description": "Deploy AI services with FastAPI, Docker, Ray Serve, monitoring, drift detection, and CI/CD pipelines.",
-                "estimated_hours": 15.0,
-                "resources": [
-                    "https://fastapi.tiangolo.com - FastAPI Production Async Web Services",
-                    "https://mlflow.org/docs/latest/ - MLflow Model Lifecycle & Experiment Tracking",
-                    "https://docker.com/get-started/ - Containerizing AI & LLM Worker Pipelines",
-                ],
-            },
-        ]
-    else:
-        steps = [
-            {
-                "topic": f"1. Core Foundations & Toolchain Setup for {title_case}",
-                "description": f"Master foundational principles, CLI configuration, syntax, and essential concepts of {cleaned}.",
-                "estimated_hours": 5.0,
-                "resources": [
-                    f"https://www.google.com/search?q=official+{cleaned}+documentation - Official {title_case} Documentation",
-                    f"https://www.google.com/search?q={cleaned}+cli+setup - CLI & Environment Configuration",
-                    f"https://www.google.com/search?q={cleaned}+getting+started - Hands-on Getting Started Exercises",
-                ],
-            },
-            {
-                "topic": f"2. Essential Architecture & Core Patterns",
-                "description": f"Understand structural paradigms, data models, memory management, and design patterns for {cleaned}.",
-                "estimated_hours": 8.0,
-                "resources": [
-                    f"https://www.google.com/search?q={cleaned}+architecture+guide - {title_case} Architecture & API Specs",
-                    f"https://www.google.com/search?q={cleaned}+design+patterns - Deep-dive Code Examples & Patterns",
-                    f"https://www.google.com/search?q={cleaned}+unit+testing - Unit Testing & Error Handling",
-                ],
-            },
-            {
-                "topic": f"3. Advanced Framework Ecosystem & Optimization",
-                "description": f"Explore ecosystem packages, state management, asynchronous operations, and performance profiling.",
-                "estimated_hours": 10.0,
-                "resources": [
-                    f"https://www.google.com/search?q={cleaned}+packages+libraries - Popular Packages & Ecosystem Tools",
-                    f"https://www.google.com/search?q={cleaned}+performance+optimization - Performance Benchmarking",
-                    f"https://www.google.com/search?q={cleaned}+security+best+practices - Security & Best Practice Checklist",
-                ],
-            },
-            {
-                "topic": f"4. System Design, Integration & Testing",
-                "description": f"Implement complex workflows, API integrations, database schemas, and multi-service architectures.",
-                "estimated_hours": 10.0,
-                "resources": [
-                    f"https://www.google.com/search?q={cleaned}+system+design - System Design Specification for {title_case}",
-                    f"https://www.google.com/search?q={cleaned}+integration+testing - Automated Test Suites",
-                    f"https://www.google.com/search?q={cleaned}+cicd+pipeline - CI/CD Pipeline & Build System Setup",
-                ],
-            },
-            {
-                "topic": f"5. Capstone Portfolio Application & Production Deployment",
-                "description": f"Synthesize all concepts by building, testing, and deploying a complete production-grade {cleaned} project.",
-                "estimated_hours": 15.0,
-                "resources": [
-                    f"https://www.google.com/search?q={cleaned}+capstone+project - Capstone Project Specification",
-                    f"https://www.google.com/search?q={cleaned}+deployment+guide - Production Deployment Documentation",
-                    f"https://www.google.com/search?q={cleaned}+code+review - Code Review & Portfolio Checklist",
-                ],
-            },
-        ]
+    # Dynamic fallback step generation tailored specifically to $goal_name
+    steps = [
+        {
+            "topic": f"1. {title_case} Core Syntax & Environment Toolchain",
+            "description": f"Master foundational principles, runtime/compiler toolchain setup, package configuration, and core syntax of {cleaned}.",
+            "estimated_hours": 6.0,
+            "resources": [
+                f"https://www.google.com/search?q=official+{encode_param(cleaned)}+documentation - Official {title_case} Documentation & API Reference",
+                f"https://www.google.com/search?q={encode_param(cleaned)}+getting+started+guide - Hands-on {title_case} Getting Started Guide",
+            ],
+            "subtasks": [
+                f"Install CLI tools and environment for {cleaned}",
+                f"Write and verify initial baseline project for {cleaned}",
+                "Configure linter, formatter, and package manager",
+            ],
+        },
+        {
+            "topic": f"2. {title_case} Architecture & Core Building Blocks",
+            "description": f"Understand structural paradigms, component/data models, memory & state management, and design patterns for {cleaned}.",
+            "estimated_hours": 8.0,
+            "resources": [
+                f"https://www.google.com/search?q={encode_param(cleaned)}+architecture+design+patterns - {title_case} Architecture Specs & Design Patterns",
+                f"https://www.google.com/search?q={encode_param(cleaned)}+best+practices+guide - Core Building Blocks & Best Practices",
+            ],
+            "subtasks": [
+                f"Implement core data structures and modular components for {cleaned}",
+                f"Apply key design patterns and error handling in {cleaned}",
+                "Write unit tests covering baseline modules",
+            ],
+        },
+        {
+            "topic": f"3. Advanced Framework Ecosystem & Integration",
+            "description": f"Explore ecosystem libraries, asynchronous operations, state workflows, API integrations, and database schemas.",
+            "estimated_hours": 10.0,
+            "resources": [
+                f"https://www.google.com/search?q={encode_param(cleaned)}+ecosystem+libraries - Top Ecosystem Libraries & Tools for {title_case}",
+                f"https://www.google.com/search?q={encode_param(cleaned)}+api+integration - API & Service Integration Guide",
+            ],
+            "subtasks": [
+                f"Integrate standard ecosystem packages for {cleaned}",
+                "Build async request handlers and state pipelines",
+                "Perform integration testing across services",
+            ],
+        },
+        {
+            "topic": f"4. System Design, Performance & Security",
+            "description": f"Optimize execution performance, memory usage, security guardrails, caching, and multi-component system design.",
+            "estimated_hours": 10.0,
+            "resources": [
+                f"https://www.google.com/search?q={encode_param(cleaned)}+performance+optimization - Performance Benchmarking & Profiling Guide",
+                f"https://www.google.com/search?q={encode_param(cleaned)}+security+hardening - Security Hardening & Audit Checklist",
+            ],
+            "subtasks": [
+                f"Profile memory and CPU utilization for {cleaned}",
+                "Implement security validation and input sanitization",
+                "Benchmark high-throughput execution paths",
+            ],
+        },
+        {
+            "topic": f"5. Capstone Project Release & Production Deployment",
+            "description": f"Synthesize all concepts by building, containerizing, testing, and deploying a complete production-grade {cleaned} application.",
+            "estimated_hours": 15.0,
+            "resources": [
+                f"https://www.google.com/search?q={encode_param(cleaned)}+production+deployment - Production Deployment Documentation",
+                f"https://www.google.com/search?q={encode_param(cleaned)}+capstone+project+spec - Capstone Portfolio Project Specification",
+            ],
+            "subtasks": [
+                f"Build full-featured capstone application for {cleaned}",
+                "Configure CI/CD automated deployment pipeline",
+                "Publish project repository and documentation",
+            ],
+        },
+    ]
+
+    total_h = sum(float(s["estimated_hours"]) for s in steps)
+    return {
+        "goal": goal_name,
+        "steps": steps,
+        "total_estimated_hours": total_h,
+        "motivational_summary": f"Embark on a structured 5-stage learning path to master {title_case} step by step!",
+    }
+
+
+def encode_param(text: str) -> str:
+    import urllib.parse
+    return urllib.parse.quote_plus(text)
 
     total_h = sum(float(s["estimated_hours"]) for s in steps)
     return {
@@ -338,10 +274,16 @@ async def get_prerequisites(
         context += "GRAPH GROUNDED TOPICS:\n" + "\n".join(f"- {t}" for t in ordered)
 
     parsed = None
-    try:
-        import json as json_module
-        from speroflow_ai.services.chat_model import create_chat_model
+    import json as json_module
+    from speroflow_ai.services.chat_model import create_chat_model
 
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": context},
+    ]
+
+    # Attempt 1: Configured LLM provider & model
+    try:
         llm = create_chat_model(
             provider=settings.llm_provider,
             model=settings.llm_model,
@@ -351,21 +293,37 @@ async def get_prerequisites(
             bedrock_region=settings.bedrock_region,
             max_tokens=1_500,
         )
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": context},
-        ]
         response = await llm.ainvoke(messages)
         raw = response.content if hasattr(response, "content") else str(response)
-
         clean = raw.strip()
         json_match = re.search(r'```(?:json)?\s*\n(.*?)```', clean, re.DOTALL)
         if json_match:
             clean = json_match.group(1)
         parsed = json_module.loads(clean.strip())
-    except Exception as exc:
-        logger.warning("LLM roadmap synthesis unavailable or failed (%s); using fallback generator.", exc)
+    except Exception as exc1:
+        logger.warning("Primary LLM synthesis (%s/%s) failed: %s. Trying secondary LLM fallback...", settings.llm_provider, settings.llm_model, exc1)
+        
+        # Attempt 2: Bedrock native model identifier fallback if provider is bedrock
+        if settings.llm_provider == "bedrock":
+            try:
+                fallback_llm = create_chat_model(
+                    provider="bedrock",
+                    model="us.amazon.nova-pro-v1:0",
+                    api_base="",
+                    api_key="",
+                    temperature=0.2,
+                    bedrock_region=settings.bedrock_region,
+                    max_tokens=1_500,
+                )
+                response = await fallback_llm.ainvoke(messages)
+                raw = response.content if hasattr(response, "content") else str(response)
+                clean = raw.strip()
+                json_match = re.search(r'```(?:json)?\s*\n(.*?)```', clean, re.DOTALL)
+                if json_match:
+                    clean = json_match.group(1)
+                parsed = json_module.loads(clean.strip())
+            except Exception as exc2:
+                logger.warning("Secondary Bedrock LLM synthesis failed: %s", exc2)
 
     if not parsed or not isinstance(parsed.get("steps"), list) or len(parsed.get("steps", [])) == 0:
         parsed = _build_fallback_timeline(request.goal_name, ordered)
