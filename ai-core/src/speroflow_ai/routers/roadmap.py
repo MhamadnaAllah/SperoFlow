@@ -30,18 +30,19 @@ router = APIRouter(prefix="/api/roadmap", tags=["Roadmap Graph RAG"])
 
 # ── System Prompt ──────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are an expert curriculum designer for SperoFlow.
+SYSTEM_PROMPT = """You are an expert curriculum designer and AI Software Architect for SperoFlow.
 
-Your task is to create a structured, step-by-step learning roadmap for a GOAL.
+Your task is to create a comprehensive, highly detailed, step-by-step learning roadmap tailored specifically to a GOAL.
 
 Guidelines:
-1. Divide the learning path into 4 to 8 logical, progressive steps.
-2. For each step, provide:
-   - "topic": Clear, concise step title
-   - "description": Why this step is needed and what key concepts to master
-   - "estimated_hours": Realistic study/practice time in hours (e.g. 2.5, 4.0)
-   - "resources": A list of 2-4 actionable resources, official documentation topics, or practice exercises for this step
-3. Write an inspiring "motivational_summary" summarizing the journey.
+1. Divide the learning path into 5 to 8 logical, progressive, and highly specific steps for the target goal.
+2. Ensure every step topic is rich, detailed, and directly names core technologies, tools, design patterns, and architectures relevant to the goal.
+3. For each step, provide:
+   - "topic": Clear, highly specific step title (e.g., "1. Game Loop Architecture & Math Fundamentals", "2. Physics Engines & Collision Systems")
+   - "description": Comprehensive objective detailing what key concepts to master and what to build
+   - "estimated_hours": Realistic study and hands-on practice time in hours (e.g., 5.0, 8.0, 12.0)
+   - "resources": A list of 3-4 actionable official docs, textbooks, interactive tutorials, or hands-on practice project specs
+4. Write an inspiring "motivational_summary" summarizing the learning journey.
 
 Respond ONLY as a valid JSON object matching this schema:
 {
@@ -49,12 +50,12 @@ Respond ONLY as a valid JSON object matching this schema:
   "steps": [
     {
       "topic": "Step Title",
-      "description": "Clear step objective and overview.",
-      "estimated_hours": 3.0,
-      "resources": ["Official Documentation / Guide", "Key Practice Project", "Core Concept"]
+      "description": "Clear, detailed step objective and overview.",
+      "estimated_hours": 6.0,
+      "resources": ["Official Documentation / Guide", "Key Practice Project", "Core Architecture Spec"]
     }
   ],
-  "total_estimated_hours": 15.0,
+  "total_estimated_hours": 35.0,
   "motivational_summary": "Motivational summary text..."
 }
 """
@@ -78,10 +79,12 @@ async def _fetch_prerequisite_subgraph(
         WHERE (goal:Topic OR goal:Subtopic OR goal:Roadmap)
           AND (toLower(goal.label_text) CONTAINS toLower($topic) OR toLower($topic) CONTAINS toLower(goal.label_text))
           AND (prereq:Topic OR prereq:Subtopic OR prereq:Roadmap)
+          AND size(toLower(prereq.label_text)) > 3
         UNWIND relationships(path) AS rel
         WITH DISTINCT
             startNode(rel).label_text AS source,
             endNode(rel).label_text AS target
+        WHERE size(trim(source)) > 3 AND size(trim(target)) > 3
         RETURN source, target
     """
     nodes: set[str] = set()
@@ -92,28 +95,16 @@ async def _fetch_prerequisite_subgraph(
         records = await result.data()
         for record in records:
             src, tgt = record["source"], record["target"]
-            nodes.add(src)
-            nodes.add(tgt)
-            edges.append((src, tgt))
+            if len(src.strip()) > 3 and len(tgt.strip()) > 3:
+                nodes.add(src)
+                nodes.add(tgt)
+                edges.append((src, tgt))
 
-    # If direct path traversal yielded nothing, attempt fuzzy node matching
-    if not edges:
-        fuzzy_cypher = """
-            MATCH (t)
-            WHERE (t:Topic OR t:Subtopic OR t:Roadmap)
-              AND (toLower(t.label_text) CONTAINS toLower($topic) OR toLower($topic) CONTAINS toLower(t.label_text))
-            RETURN t.label_text AS name
-            LIMIT 10
-        """
-        async with driver.session() as session:
-            f_result = await session.run(fuzzy_cypher, topic=topic)
-            f_records = await f_result.data()
-            for r in f_records:
-                nodes.add(r["name"])
+    # Filtered topics list (exclude noise like 'R', 'P', 'MIN')
+    filtered_nodes = [n for n in nodes if len(n.strip()) > 3]
 
-    nodes.add(goal_name)
-    logger.info("Subgraph for '%s' (cleaned: '%s'): %d nodes, %d edges.", goal_name, topic, len(nodes), len(edges))
-    return list(nodes), edges
+    logger.info("Subgraph for '%s' (cleaned: '%s'): %d nodes, %d edges.", goal_name, topic, len(filtered_nodes), len(edges))
+    return filtered_nodes, edges
 
 
 def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[str]:
@@ -148,69 +139,66 @@ def _build_fallback_timeline(goal_name: str, topics: list[str]) -> dict[str, Any
     cleaned = _clean_topic_name(goal_name)
     title_case = cleaned.title()
 
-    if topics and len(topics) > 1:
-        steps = []
-        for i, t in enumerate(topics):
-            steps.append({
-                "topic": t,
-                "description": f"Master fundamental concepts and practical implementation of {t}.",
-                "estimated_hours": 3.0,
-                "resources": [
-                    f"{t} Official Documentation & Core API Specs",
-                    f"Hands-on Project: Implement key {t} components",
-                    f"Interactive Practice & Verification Exercises",
-                ],
-            })
-    else:
-        steps = [
-            {
-                "topic": f"1. Foundations & Environment Setup for {title_case}",
-                "description": f"Understand core principles, install required toolchains, and setup working environment for {cleaned}.",
-                "estimated_hours": 3.0,
-                "resources": [
-                    f"Getting Started Guide for {title_case}",
-                    "Environment Configuration & CLI Setup",
-                    "Hello World & Basic Syntax Walkthrough",
-                ],
-            },
-            {
-                "topic": f"2. Core Concepts & Building Blocks of {title_case}",
-                "description": f"Dive into essential architecture, data structures, and fundamental paradigms.",
-                "estimated_hours": 5.0,
-                "resources": [
-                    f"{title_case} Core Architecture Documentation",
-                    "Deep-dive Code Examples & Patterns",
-                    "Unit Testing & Debugging Best Practices",
-                ],
-            },
-            {
-                "topic": f"3. Advanced Techniques & Ecosystem Tools",
-                "description": f"Explore ecosystem libraries, performance tuning, and production-ready patterns.",
-                "estimated_hours": 6.0,
-                "resources": [
-                    f"Standard Library & Popular Ecosystem Packages for {title_case}",
-                    "Performance Benchmarking & Profiling Guide",
-                    "Security & Best Practice Checklist",
-                ],
-            },
-            {
-                "topic": f"4. Real-World Application & Portfolio Project",
-                "description": f"Synthesize your knowledge by building and deploying a complete end-to-end application.",
-                "estimated_hours": 8.0,
-                "resources": [
-                    f"Full-stack Capstone Project Specification for {title_case}",
-                    "CI/CD & Deployment Guide",
-                    "Code Review & Portfolio Presentation Checklist",
-                ],
-            },
-        ]
+    # Always generate detailed, goal-specific steps
+    steps = [
+        {
+            "topic": f"1. Core Foundations & Environment Setup for {title_case}",
+            "description": f"Master foundational principles, toolchain setup, syntax, and essential concepts of {cleaned}.",
+            "estimated_hours": 4.0,
+            "resources": [
+                f"Official {title_case} Documentation & Getting Started Guide",
+                f"CLI & IDE Toolchain Configuration for {title_case}",
+                f"Hands-on Hello World & Core Syntax Exercises",
+            ],
+        },
+        {
+            "topic": f"2. Essential Architecture & Core Building Blocks",
+            "description": f"Understand structural paradigms, core data structures, memory management, and design patterns for {cleaned}.",
+            "estimated_hours": 6.0,
+            "resources": [
+                f"{title_case} Architecture & Core API Specifications",
+                "Deep-dive Code Examples & Common Patterns",
+                "Unit Testing & Error Handling Best Practices",
+            ],
+        },
+        {
+            "topic": f"3. Advanced Mechanics & Framework Ecosystem",
+            "description": f"Explore ecosystem libraries, state management, asynchronous operations, and performance tuning for {cleaned}.",
+            "estimated_hours": 8.0,
+            "resources": [
+                f"Standard Library & Top Ecosystem Packages for {title_case}",
+                "Profiling & Performance Optimization Guides",
+                "Security & Production Readiness Checklist",
+            ],
+        },
+        {
+            "topic": f"4. Integration, Testing & System Design",
+            "description": f"Implement complex workflows, API integrations, databases, and multi-component system architectures.",
+            "estimated_hours": 8.0,
+            "resources": [
+                f"System Design & Component Architecture Spec for {title_case}",
+                "Integration Testing & Automated Test Suites",
+                "CI/CD Pipeline & Build System Setup",
+            ],
+        },
+        {
+            "topic": f"5. Capstone Portfolio Application & Deployment",
+            "description": f"Synthesize all concepts by building, optimizing, and deploying a complete production-grade {cleaned} project.",
+            "estimated_hours": 12.0,
+            "resources": [
+                f"Full-stack {title_case} Capstone Project Specification",
+                "Production Deployment & Hosting Documentation",
+                "Code Review & Portfolio Presentation Checklist",
+            ],
+        },
+    ]
 
     total_h = sum(float(s["estimated_hours"]) for s in steps)
     return {
         "goal": goal_name,
         "steps": steps,
         "total_estimated_hours": total_h,
-        "motivational_summary": f"Embark on a structured 4-stage learning path to master {title_case} step by step!",
+        "motivational_summary": f"Embark on a structured 5-stage learning path to master {title_case} step by step!",
     }
 
 

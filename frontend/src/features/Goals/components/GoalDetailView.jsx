@@ -244,6 +244,18 @@ export default function GoalDetailView() {
         <button aria-label="Dismiss notice" className="flex h-7 w-7 items-center justify-center" onClick={() => setNotice(null)} type="button"><span className="material-symbols-outlined" style={{ fontSize: "18px" }}>close</span></button>
       </div>}
 
+      {busy && !roadmapProposal && (
+        <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/80 p-6 text-center shadow-sm animate-pulse">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-md mb-3">
+            <span className="material-symbols-outlined animate-spin text-[24px]">sync</span>
+          </div>
+          <h3 className="text-base font-bold text-slate-900">Initializing GraphRAG Roadmap with google.gemma-4-31b...</h3>
+          <p className="mt-1 max-w-md mx-auto text-xs text-slate-600 leading-relaxed">
+            Traversing knowledge graph and synthesizing topic-specific learning steps, objectives, and curated resources for <strong>"{goal.title}"</strong>.
+          </p>
+        </div>
+      )}
+
       {roadmapProposal && <div className="mt-6"><RoadmapReview busy={busy} onApprove={approveRoadmap} onCancel={cancelRoadmap} proposal={roadmapProposal} goal={goal} /></div>}
 
       <main className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">

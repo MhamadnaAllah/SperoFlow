@@ -11,7 +11,7 @@ export default function GoalPathRoadmap({ milestones = [], goal = null, busy = f
   }
 
   const completedCount = milestones.filter((m) => m.state === "completed").length;
-  const overallProgress = Math.round((completedCount / milestones.length) * 100);
+  const overallProgress = proposalMode ? 0 : (milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0);
 
   return (
     <div className="relative w-full py-8">
@@ -20,7 +20,7 @@ export default function GoalPathRoadmap({ milestones = [], goal = null, busy = f
         {/* Dynamic Progress Line */}
         <div
           className="w-full bg-blue-600 rounded-full absolute top-0 left-0 transition-all duration-500"
-          style={{ height: `${proposalMode ? 25 : Math.max(overallProgress, 10)}%` }}
+          style={{ height: `${overallProgress}%` }}
         />
       </div>
 
@@ -29,11 +29,11 @@ export default function GoalPathRoadmap({ milestones = [], goal = null, busy = f
         {milestones.map((node, index) => {
           const isCompleted = node.state === "completed";
           const isFirstIncomplete = !isCompleted && milestones.slice(0, index).every((m) => m.state === "completed");
-          const isInProgress = proposalMode ? index === 0 : isFirstIncomplete;
+          const isInProgress = !proposalMode && isFirstIncomplete && completedCount > 0;
           const isEven = index % 2 === 0;
 
           // Status Badge details
-          let badgeText = "Upcoming Node";
+          let badgeText = proposalMode ? `Proposed Module ${index + 1}` : "Upcoming Node";
           let badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
           let borderClass = "border-slate-200 shadow-sm hover:border-blue-400";
           let iconName = "circle";
