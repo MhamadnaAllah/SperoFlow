@@ -34,7 +34,6 @@ export default function NodeDetailModal({ milestone, goal, onClose, onStateChang
       setAddingTask(false);
     } catch (err) {
       setNotice("Failed to add task.");
-    } box-shadow: 0 0 0 1px rgba(0,0,0,0.05);
     } finally {
       setBusy(false);
     }
