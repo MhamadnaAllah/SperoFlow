@@ -23,10 +23,10 @@ public static partial class ApiEndpoints
         var roles = api.MapGroup("/roles");
 
         roles.MapGet("", async (
-            bool includeArchived,
             AppDbContext db,
             ICurrentUser currentUser,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            bool includeArchived = false) =>
         {
             var query = db.LifeRoles.AsNoTracking().Where(role => role.OwnerId == currentUser.UserId);
             if (!includeArchived)

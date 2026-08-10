@@ -434,7 +434,7 @@ public static partial class ApiEndpoints
     private static void MapProjects(RouteGroupBuilder api)
     {
         var projects = api.MapGroup("/projects");
-        projects.MapGet("", async (ProjectState? state, bool includeArchived, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken) =>
+        projects.MapGet("", async (ProjectState? state, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken, bool includeArchived = false) =>
         {
             var query = db.Projects.AsNoTracking().Where(project => project.OwnerId == currentUser.UserId);
             if (state.HasValue)
@@ -856,7 +856,7 @@ public static partial class ApiEndpoints
     private static void MapHabits(RouteGroupBuilder api)
     {
         var habits = api.MapGroup("/habits");
-        habits.MapGet("", async (bool includeArchived, AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken) =>
+        habits.MapGet("", async (AppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken, bool includeArchived = false) =>
         {
             var query = db.Habits.AsNoTracking().Where(value => value.OwnerId == currentUser.UserId);
             if (!includeArchived)

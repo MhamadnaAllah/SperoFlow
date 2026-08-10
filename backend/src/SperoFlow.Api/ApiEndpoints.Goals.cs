@@ -14,10 +14,10 @@ public static partial class ApiEndpoints
         var goals = api.MapGroup("/goals");
 
         goals.MapGet("", async (
-            bool includeArchived,
             AppDbContext db,
             ICurrentUser currentUser,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            bool includeArchived = false) =>
         {
             var query = db.Goals.AsNoTracking().Where(goal => goal.OwnerId == currentUser.UserId);
             if (!includeArchived)
@@ -165,10 +165,10 @@ public static partial class ApiEndpoints
 
         goals.MapGet("/{id:guid}/milestones", async (
             Guid id,
-            bool includeArchived,
             AppDbContext db,
             ICurrentUser currentUser,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            bool includeArchived = false) =>
         {
             var owned = await db.Goals.AsNoTracking().AnyAsync(
                 goal => goal.Id == id && goal.OwnerId == currentUser.UserId,

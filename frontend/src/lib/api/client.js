@@ -183,7 +183,8 @@ export const projectsApi = {
 
 export const goalsApi = {
   list(filters = {}) {
-    return apiRequest("/goals" + queryString(filters)).then(mapGoalListDto);
+    const params = { includeArchived: false, ...filters };
+    return apiRequest("/goals" + queryString(params)).then(mapGoalListDto);
   },
   get(id) {
     return apiRequest("/goals/" + id).then(mapGoalDto);
@@ -195,7 +196,8 @@ export const goalsApi = {
     return apiRequest("/goals/" + id, { method: "PUT", body: input }).then(mapGoalDto);
   },
   listMilestones(id, filters = {}) {
-    return apiRequest("/goals/" + id + "/milestones" + queryString(filters)).then(mapGoalMilestoneListDto);
+    const params = { includeArchived: false, ...filters };
+    return apiRequest("/goals/" + id + "/milestones" + queryString(params)).then(mapGoalMilestoneListDto);
   },
   createMilestone(id, input) {
     return apiRequest("/goals/" + id + "/milestones", { method: "POST", body: input }).then(mapGoalMilestoneDto);
