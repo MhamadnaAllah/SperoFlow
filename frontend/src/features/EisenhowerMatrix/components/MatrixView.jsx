@@ -1,18 +1,86 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 
 import BrainDumpModal from "./BrainDumpModal";
 import { aiApi, aiProposalsApi, ApiError, tasksApi } from "@/lib/api/client";
 
 const QUADRANTS = [
-  { id: "unsorted", title: "Unsorted", description: "Capture first, decide next.", color: "#64748b" },
-  { id: "q1", title: "Do now", description: "Urgent and important", color: "#b42318" },
-  { id: "q2", title: "Schedule", description: "Important, not urgent", color: "#0053dc" },
-  { id: "q3", title: "Delegate", description: "Urgent, not important", color: "#865400" },
-  { id: "q4", title: "Eliminate", description: "Neither urgent nor important", color: "#596063" },
+  {
+    id: "q1",
+    label: "DO IT NOW",
+    sub: "Quadrant I",
+    tag: "Urgent & Important",
+    icon: "bolt",
+    iconBg: "bg-amber-100",
+    iconText: "text-amber-700",
+    sectionBg: "rgba(251,191,36,0.06)",
+    border: "#f59e0b",
+    tagBg: "rgba(245,158,11,0.1)",
+    tagText: "#b45309",
+  },
+  {
+    id: "q2",
+    label: "SCHEDULE IT",
+    sub: "Quadrant II",
+    tag: "Non-Urgent & Important",
+    icon: "calendar_today",
+    iconBg: "bg-green-100",
+    iconText: "text-green-700",
+    sectionBg: "rgba(16,185,129,0.05)",
+    border: "#10b981",
+    tagBg: "rgba(16,185,129,0.1)",
+    tagText: "#047857",
+  },
+  {
+    id: "q3",
+    label: "DELEGATE IT",
+    sub: "Quadrant III",
+    tag: "Urgent & Non-Important",
+    icon: "groups",
+    iconBg: "bg-blue-100",
+    iconText: "text-blue-700",
+    sectionBg: "rgba(59,130,246,0.05)",
+    border: "#3b82f6",
+    tagBg: "rgba(59,130,246,0.1)",
+    tagText: "#1d4ed8",
+  },
+  {
+    id: "q4",
+    label: "ELIMINATE IT",
+    sub: "Quadrant IV",
+    tag: "Non-Urgent & Non-Important",
+    icon: "delete",
+    iconBg: "bg-slate-200",
+    iconText: "text-slate-500",
+    sectionBg: "rgba(148,163,184,0.06)",
+    border: "#94a3b8",
+    tagBg: "rgba(148,163,184,0.1)",
+    tagText: "#64748b",
+  },
 ];
+
+const UNSORTED_QUADRANT = {
+  id: "unsorted",
+  label: "UNSORTED INBOX",
+  sub: "Capture First",
+  tag: "Needs Priority Decision",
+  icon: "inbox",
+  iconBg: "bg-purple-100",
+  iconText: "text-purple-700",
+  sectionBg: "rgba(124,58,237,0.04)",
+  border: "#7c3aed",
+  tagBg: "rgba(124,58,237,0.1)",
+  tagText: "#6d28d9",
+};
 
 function messageFrom(error, fallback) {
   return error instanceof ApiError ? error.message : fallback;
@@ -38,67 +106,231 @@ function taskUpdate(task, changes) {
   };
 }
 
-function quadrantLabel(id) {
-  return QUADRANTS.find((item) => item.id === id)?.title || "Review";
-}
-
 function ProposalReview({ busy, onApprove, onCancel, proposal }) {
-  const suggested = proposal.payload?.quadrant || "unsorted";
+  const suggestedId = proposal.payload?.quadrant || "q1";
+  const matched = QUADRANTS.find((q) => q.id === suggestedId) || QUADRANTS[0];
+
   return (
-    <section className="mt-3 border-l-2 border-primary bg-primary/5 px-3 py-2.5">
+    <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50/70 p-3">
       <div className="flex items-start gap-2">
-        <span className="material-symbols-outlined mt-0.5 text-primary" style={{ fontSize: "16px" }}>auto_awesome</span>
+        <span
+          className="material-symbols-outlined text-purple-600"
+          style={{ fontSize: "16px", fontVariationSettings: "'FILL' 1" }}
+        >
+          auto_awesome
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-on-surface">AI suggests: {quadrantLabel(suggested)}</p>
-          <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{proposal.description}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button className="rounded-md border border-outline-variant/40 px-2.5 py-1.5 text-xs font-bold text-on-surface hover:bg-white disabled:opacity-50" disabled={busy} onClick={() => onCancel(proposal)} type="button">Cancel</button>
-            <button className="rounded-md bg-primary px-2.5 py-1.5 text-xs font-bold text-on-primary disabled:opacity-50" disabled={busy} onClick={() => onApprove(proposal)} type="button">Approve</button>
+          <p className="text-xs font-bold text-purple-900">
+            AI Suggestion: Move to {matched.label}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-purple-800">
+            {proposal.description}
+          </p>
+          <div className="mt-2.5 flex items-center gap-2">
+            <button
+              onClick={() => onApprove(proposal)}
+              disabled={busy}
+              type="button"
+              className="rounded-lg bg-purple-600 px-3 py-1 text-xs font-bold text-white shadow-sm transition-all hover:bg-purple-700 disabled:opacity-50"
+            >
+              Approve
+            </button>
+            <button
+              onClick={() => onCancel(proposal)}
+              disabled={busy}
+              type="button"
+              className="rounded-lg border border-purple-300 bg-white px-3 py-1 text-xs font-bold text-purple-700 transition-all hover:bg-purple-100 disabled:opacity-50"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
-function DraggableTask({ busy, onApprove, onCancel, onClassify, proposal, task }) {
+function TaskCard({ busy, onApprove, onCancel, onClassify, proposal, task, quadrantId }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
-    data: { taskId: task.id },
+    data: { taskId: task.id, quadrantId },
   });
-  const style = transform ? { transform: "translate3d(" + transform.x + "px, " + transform.y + "px, 0)" } : undefined;
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+
   return (
-    <article ref={setNodeRef} style={{ ...style, opacity: isDragging ? 0.45 : 1 }} {...attributes} className="rounded-lg border border-outline-variant/25 bg-white p-3 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <p {...listeners} className="min-w-0 flex-1 cursor-grab text-sm font-semibold leading-snug text-on-surface active:cursor-grabbing">{task.title}</p>
-        <button aria-label={"Classify " + task.title} className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10 disabled:opacity-40" disabled={busy || Boolean(proposal)} onClick={() => onClassify(task)} onPointerDown={(event) => event.stopPropagation()} title={proposal ? "A priority suggestion is waiting for your review." : "Ask AI to suggest a quadrant"} type="button">
-          <span className="material-symbols-outlined" style={{ fontSize: "17px" }}>{busy ? "progress_activity" : "auto_awesome"}</span>
-        </button>
+    <div
+      ref={setNodeRef}
+      style={{ ...style, opacity: isDragging ? 0.45 : 1 }}
+      {...attributes}
+      className="group relative cursor-grab rounded-2xl bg-white p-4 shadow-sm transition-all hover:shadow-md active:cursor-grabbing"
+    >
+      <div className="flex gap-3">
+        <div {...listeners} className="pt-0.5 text-slate-300 transition-colors group-hover:text-slate-400">
+          <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>
+            drag_indicator
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <h3
+              className={`text-sm font-semibold leading-tight text-on-surface ${
+                quadrantId === "q4" ? "line-through text-slate-400" : ""
+              }`}
+            >
+              {task.title}
+            </h3>
+            <div className="flex items-center gap-1.5">
+              {task.lifeArea && (
+                <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight text-primary">
+                  {task.lifeArea}
+                </span>
+              )}
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClassify(task);
+                }}
+                disabled={busy || Boolean(proposal)}
+                title={proposal ? "AI suggestion waiting" : "Analyze with AI"}
+                className="flex h-6 w-6 items-center justify-center rounded-full transition-opacity hover:bg-purple-100 disabled:cursor-not-allowed"
+              >
+                {busy ? (
+                  <span className="h-3 w-3 animate-spin rounded-full border border-purple-600 border-t-transparent" />
+                ) : (
+                  <span
+                    className="material-symbols-outlined text-purple-600"
+                    style={{ fontSize: "14px", fontVariationSettings: "'FILL' 1" }}
+                  >
+                    auto_awesome
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {task.description && (
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-on-surface-variant">
+              {task.description}
+            </p>
+          )}
+
+          <div className="mt-3 flex items-center justify-between gap-2 text-[10px] font-medium text-slate-400">
+            <span>
+              {task.dueAt
+                ? `Due ${new Date(task.dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                : "No due date"}
+            </span>
+            {task.estimatedMinutes && <span>⏱ {task.estimatedMinutes}m</span>}
+          </div>
+
+          {proposal && (
+            <ProposalReview
+              busy={busy}
+              onApprove={onApprove}
+              onCancel={onCancel}
+              proposal={proposal}
+            />
+          )}
+        </div>
       </div>
-      {task.description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{task.description}</p>}
-      <div className="mt-3 flex items-center justify-between gap-2 text-[11px] font-bold text-on-surface-variant">
-        <span>{task.lifeArea}</span>
-        <span>{task.dueAt ? new Date(task.dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No due date"}</span>
-      </div>
-      {proposal && <ProposalReview busy={busy} onApprove={onApprove} onCancel={onCancel} proposal={proposal} />}
-    </article>
+    </div>
   );
 }
 
-function Quadrant({ busyTaskId, onApprove, onCancel, onClassify, proposalsByTask, quadrant, tasks }) {
-  const { isOver, setNodeRef } = useDroppable({ id: quadrant.id, data: { quadrantId: quadrant.id } });
+function QuadrantColumn({
+  busyTaskId,
+  onApprove,
+  onCancel,
+  onClassify,
+  proposalsByTask,
+  quadrant,
+  tasks,
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: quadrant.id,
+    data: { quadrantId: quadrant.id },
+  });
+
   return (
-    <section ref={setNodeRef} className={"min-h-[16rem] rounded-lg border p-4 transition-colors " + (isOver ? "border-primary/45 bg-primary/5" : "border-outline-variant/25 bg-surface-container-low/60")}>
-      <header className="mb-3 border-b border-outline-variant/15 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-on-surface"><span className="h-2.5 w-2.5 rounded-full" style={{ background: quadrant.color }} />{quadrant.title}</h2>
-          <span className="rounded-md bg-white px-2 py-0.5 text-xs font-bold text-on-surface-variant">{tasks.length}</span>
+    <section
+      ref={setNodeRef}
+      className="flex min-h-[260px] flex-col gap-4 rounded-[2rem] p-5 transition-all"
+      style={{
+        backgroundColor: isOver
+          ? quadrant.sectionBg.replace(/[\d.]+\)$/, (s) => (parseFloat(s) * 3.5).toFixed(2) + ")")
+          : quadrant.sectionBg,
+        border: isOver ? `2px dashed ${quadrant.border}` : "2px solid transparent",
+      }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-2xl ${quadrant.iconBg} ${quadrant.iconText}`}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "20px", fontVariationSettings: "'FILL' 1" }}
+            >
+              {quadrant.icon}
+            </span>
+          </div>
+          <div>
+            <span
+              className="block text-[9px] font-extrabold uppercase leading-none tracking-widest"
+              style={{ color: quadrant.border }}
+            >
+              {quadrant.sub}
+            </span>
+            <h2 className="text-base font-bold leading-tight text-on-surface">
+              {quadrant.label}
+            </h2>
+          </div>
         </div>
-        <p className="mt-1 text-xs text-on-surface-variant">{quadrant.description}</p>
-      </header>
-      <div className="space-y-3">
-        {tasks.map((task) => <DraggableTask busy={busyTaskId === task.id} key={task.id} onApprove={onApprove} onCancel={onCancel} onClassify={onClassify} proposal={proposalsByTask.get(task.id)} task={task} />)}
-        {tasks.length === 0 && <p className="py-10 text-center text-xs text-on-surface-variant/65">Drop a task here</p>}
+
+        <div className="flex items-center gap-2">
+          <span
+            className="rounded-full px-2.5 py-1 text-[9px] font-bold uppercase"
+            style={{ background: quadrant.tagBg, color: quadrant.tagText }}
+          >
+            {quadrant.tag}
+          </span>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-500 shadow-sm">
+            {tasks.length}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="sidebar-scroll flex flex-1 flex-col gap-3 overflow-y-auto pr-1"
+        style={{ maxHeight: "calc(50vh - 40px)" }}
+      >
+        {tasks.length === 0 && (
+          <div
+            className="flex flex-1 items-center justify-center rounded-2xl border-2 border-dashed py-8 text-center"
+            style={{ borderColor: `${quadrant.border}40` }}
+          >
+            <p className="text-xs font-semibold" style={{ color: `${quadrant.border}90` }}>
+              Drop tasks here
+            </p>
+          </div>
+        )}
+        {tasks.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            quadrantId={quadrant.id}
+            busy={busyTaskId === task.id}
+            onApprove={onApprove}
+            onCancel={onCancel}
+            onClassify={onClassify}
+            proposal={proposalsByTask.get(task.id)}
+          />
+        ))}
       </div>
     </section>
   );
@@ -112,7 +344,8 @@ export default function MatrixView() {
   const [creating, setCreating] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState(null);
   const [notice, setNotice] = useState(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,7 +355,13 @@ export default function MatrixView() {
         aiProposalsApi.list({ state: "pending" }),
       ]);
       setTasks(values[0]);
-      setProposals(values[1].filter((proposal) => proposal.kind === "applyTaskClassification" && typeof proposal.payload?.taskId === "string"));
+      setProposals(
+        values[1].filter(
+          (proposal) =>
+            proposal.kind === "applyTaskClassification" &&
+            typeof proposal.payload?.taskId === "string"
+        )
+      );
       setNotice(null);
     } catch (error) {
       setNotice({ type: "error", message: messageFrom(error, "Unable to load the Matrix.") });
@@ -137,7 +376,7 @@ export default function MatrixView() {
 
   const update = async (task, changes) => {
     const saved = await tasksApi.update(task.id, taskUpdate(task, changes));
-    setTasks((current) => current.map((item) => item.id === task.id ? saved : item));
+    setTasks((current) => current.map((item) => (item.id === task.id ? saved : item)));
     return saved;
   };
 
@@ -145,10 +384,13 @@ export default function MatrixView() {
     setBusyTaskId(task.id);
     try {
       const proposal = await aiApi.proposeTaskClassification(task.id);
-      setProposals((current) => [...current.filter((item) => item.payload?.taskId !== task.id), proposal]);
-      setNotice({ type: "success", message: "A priority suggestion is ready for your decision." });
+      setProposals((current) => [
+        ...current.filter((item) => item.payload?.taskId !== task.id),
+        proposal,
+      ]);
+      setNotice({ type: "success", message: "AI classification is ready for your review." });
     } catch (error) {
-      setNotice({ type: "error", message: messageFrom(error, "The task could not be classified.") });
+      setNotice({ type: "error", message: messageFrom(error, "Task classification failed.") });
     } finally {
       setBusyTaskId(null);
     }
@@ -160,9 +402,9 @@ export default function MatrixView() {
       await aiProposalsApi.approve(proposal.id, proposal.concurrencyToken);
       setProposals((current) => current.filter((item) => item.id !== proposal.id));
       await load();
-      setNotice({ type: "success", message: "The approved priority is now on the Matrix." });
+      setNotice({ type: "success", message: "Approved priority updated on Matrix." });
     } catch (error) {
-      setNotice({ type: "error", message: messageFrom(error, "Unable to approve the priority suggestion.") });
+      setNotice({ type: "error", message: messageFrom(error, "Unable to approve proposal.") });
       await load();
     } finally {
       setBusyTaskId(null);
@@ -174,26 +416,30 @@ export default function MatrixView() {
     try {
       await aiProposalsApi.cancel(proposal.id, proposal.concurrencyToken);
       setProposals((current) => current.filter((item) => item.id !== proposal.id));
-      setNotice({ type: "success", message: "The priority suggestion was cancelled." });
+      setNotice({ type: "success", message: "Proposal cancelled." });
     } catch (error) {
-      setNotice({ type: "error", message: messageFrom(error, "Unable to cancel the priority suggestion.") });
+      setNotice({ type: "error", message: messageFrom(error, "Unable to cancel proposal.") });
       await load();
     } finally {
       setBusyTaskId(null);
     }
   };
 
-  const move = async ({ active, over }) => {
+  const handleDragEnd = async ({ active, over }) => {
     if (!over) return;
     const task = tasks.find((item) => item.id === active.id);
-    const quadrant = over.data.current?.quadrantId || String(over.id);
-    if (!task || !QUADRANTS.some((item) => item.id === quadrant) || task.quadrant === quadrant) return;
-    setTasks((current) => current.map((item) => item.id === task.id ? { ...item, quadrant } : item));
-    setProposals((current) => current.filter((proposal) => proposal.payload?.taskId !== task.id));
+    const targetQuadrant = over.data.current?.quadrantId || String(over.id);
+    if (!task || task.quadrant === targetQuadrant) return;
+
+    setTasks((current) =>
+      current.map((item) => (item.id === task.id ? { ...item, quadrant: targetQuadrant } : item))
+    );
+    setProposals((current) => current.filter((p) => p.payload?.taskId !== task.id));
+
     try {
-      await update(task, { quadrant });
+      await update(task, { quadrant: targetQuadrant });
     } catch (error) {
-      setNotice({ type: "error", message: messageFrom(error, "The move could not be saved. The Matrix was refreshed.") });
+      setNotice({ type: "error", message: messageFrom(error, "Could not save move.") });
       await load();
     }
   };
@@ -203,22 +449,27 @@ export default function MatrixView() {
     try {
       const created = [];
       for (const title of titles) {
-        created.push(await tasksApi.create({
-          title,
-          description: null,
-          lifeArea: "personal",
-          quadrant: "unsorted",
-          estimatedMinutes: null,
-          dueAt: null,
-          startAt: null,
-          projectId: null,
-          roleId: null,
-          goalId: null,
-        }));
+        created.push(
+          await tasksApi.create({
+            title,
+            description: null,
+            lifeArea: "personal",
+            quadrant: "unsorted",
+            estimatedMinutes: null,
+            dueAt: null,
+            startAt: null,
+            projectId: null,
+            roleId: null,
+            goalId: null,
+          })
+        );
       }
       setTasks((current) => [...current, ...created]);
       setBrainDumpOpen(false);
-      setNotice({ type: "success", message: String(created.length) + " task" + (created.length === 1 ? "" : "s") + " added to Unsorted." });
+      setNotice({
+        type: "success",
+        message: `Added ${created.length} task${created.length === 1 ? "" : "s"} to Unsorted Inbox ✨`,
+      });
     } catch (error) {
       setNotice({ type: "error", message: messageFrom(error, "Some tasks could not be added.") });
       await load();
@@ -227,46 +478,136 @@ export default function MatrixView() {
     }
   };
 
-  const groups = useMemo(
-    () => Object.fromEntries(QUADRANTS.map((quadrant) => [quadrant.id, tasks.filter((task) => (task.quadrant || "unsorted") === quadrant.id)])),
-    [tasks],
-  );
+  const groups = useMemo(() => {
+    const result = { unsorted: [], q1: [], q2: [], q3: [], q4: [] };
+    tasks.forEach((task) => {
+      const q = task.quadrant && result[task.quadrant] ? task.quadrant : "unsorted";
+      result[q].push(task);
+    });
+    return result;
+  }, [tasks]);
+
   const proposalsByTask = useMemo(
     () => new Map(proposals.map((proposal) => [proposal.payload.taskId, proposal])),
-    [proposals],
+    [proposals]
   );
-  const classified = tasks.filter((task) => task.quadrant && task.quadrant !== "unsorted").length;
+
+  const classifiedCount = tasks.filter((t) => t.quadrant && t.quadrant !== "unsorted").length;
 
   return (
-    <div className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      {/* Header */}
       <header className="flex flex-col gap-4 border-b border-outline-variant/20 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase text-primary">Prioritization</p>
-          <h1 className="mt-1 text-3xl font-bold text-on-surface">Eisenhower Matrix</h1>
-          <p className="mt-2 text-sm text-on-surface-variant">Drag tasks when you decide. AI priority suggestions stay pending until you approve them.</p>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+            Prioritization Engine
+          </span>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-on-surface">
+            Eisenhower Matrix
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
+            Organize tasks by urgency and importance. Drag to reclassify or use AI assistant.
+          </p>
         </div>
-        <button className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-on-primary" onClick={() => setBrainDumpOpen(true)} type="button">
-          <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>add</span>
+
+        <button
+          className="flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-on-primary shadow-md transition-all hover:bg-primary/90"
+          onClick={() => setBrainDumpOpen(true)}
+          type="button"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+            add
+          </span>
           Brain dump
         </button>
       </header>
 
-      {notice && <div className={"mt-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium " + (notice.type === "error" ? "border-error/20 bg-error/10 text-error" : "border-secondary/20 bg-secondary/10 text-secondary")}>
-        <span>{notice.message}</span>
-        <button aria-label="Dismiss notice" className="flex h-7 w-7 items-center justify-center" onClick={() => setNotice(null)} type="button"><span className="material-symbols-outlined" style={{ fontSize: "18px" }}>close</span></button>
-      </div>}
+      {/* Notice Banner */}
+      {notice && (
+        <div
+          className={`mt-4 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium ${
+            notice.type === "error"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          <span>{notice.message}</span>
+          <button onClick={() => setNotice(null)} type="button">
+            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+              close
+            </span>
+          </button>
+        </div>
+      )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-outline-variant/20 bg-white p-4"><p className="text-xs font-bold uppercase text-on-surface-variant">Tasks</p><p className="mt-1 text-2xl font-bold text-on-surface">{tasks.length}</p></div>
-        <div className="rounded-lg border border-outline-variant/20 bg-white p-4"><p className="text-xs font-bold uppercase text-on-surface-variant">Classified</p><p className="mt-1 text-2xl font-bold text-primary">{classified}</p></div>
-        <div className="rounded-lg border border-outline-variant/20 bg-white p-4"><p className="text-xs font-bold uppercase text-on-surface-variant">Awaiting review</p><p className="mt-1 text-2xl font-bold text-on-surface">{proposals.length}</p></div>
+      {/* Stats bar */}
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Tasks</p>
+          <p className="mt-1 text-2xl font-extrabold text-slate-800">{tasks.length}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Classified</p>
+          <p className="mt-1 text-2xl font-extrabold text-primary">{classifiedCount}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Awaiting AI Review</p>
+          <p className="mt-1 text-2xl font-extrabold text-purple-600">{proposals.length}</p>
+        </div>
       </div>
 
-      <main className="mt-5">
-        {loading ? <div className="grid gap-4 lg:grid-cols-2">{QUADRANTS.map((quadrant) => <div className="h-72 animate-pulse rounded-lg bg-surface-container" key={quadrant.id} />)}</div> : <DndContext onDragEnd={move} sensors={sensors}><div className="grid gap-4 lg:grid-cols-2">{QUADRANTS.map((quadrant) => <Quadrant busyTaskId={busyTaskId} key={quadrant.id} onApprove={approveProposal} onCancel={cancelProposal} onClassify={classify} proposalsByTask={proposalsByTask} quadrant={quadrant} tasks={groups[quadrant.id]} />)}</div></DndContext>}
-      </main>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        {/* Unsorted Inbox (if any unsorted tasks exist) */}
+        {!loading && groups.unsorted.length > 0 && (
+          <div className="mt-6">
+            <QuadrantColumn
+              quadrant={UNSORTED_QUADRANT}
+              tasks={groups.unsorted}
+              busyTaskId={busyTaskId}
+              onApprove={approveProposal}
+              onCancel={cancelProposal}
+              onClassify={classify}
+              proposalsByTask={proposalsByTask}
+            />
+          </div>
+        )}
 
-      <BrainDumpModal loading={creating} onClose={() => setBrainDumpOpen(false)} onSubmit={brainDump} open={brainDumpOpen} />
+        {/* 4 Quadrants Grid */}
+        <main className="mt-6">
+          {loading ? (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {QUADRANTS.map((q) => (
+                <div
+                  key={q.id}
+                  className="h-64 animate-pulse rounded-[2rem] bg-slate-100"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {QUADRANTS.map((quadrant) => (
+                <QuadrantColumn
+                  key={quadrant.id}
+                  quadrant={quadrant}
+                  tasks={groups[quadrant.id]}
+                  busyTaskId={busyTaskId}
+                  onApprove={approveProposal}
+                  onCancel={cancelProposal}
+                  onClassify={classify}
+                  proposalsByTask={proposalsByTask}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      </DndContext>
+
+      <BrainDumpModal
+        loading={creating}
+        onClose={() => setBrainDumpOpen(false)}
+        onSubmit={brainDump}
+        open={brainDumpOpen}
+      />
     </div>
   );
 }
