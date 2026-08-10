@@ -252,14 +252,38 @@ export default function GoalDetailView() {
       </div>}
 
       {busy && !roadmapProposal && (
-        <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/80 p-6 text-center shadow-sm animate-pulse">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-md mb-3">
-            <span className="material-symbols-outlined animate-spin text-[24px]">sync</span>
+        <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/90 p-8 text-center shadow-md animate-pulse">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg mb-4">
+            <span className="material-symbols-outlined animate-spin text-[28px]">sync</span>
           </div>
-          <h3 className="text-base font-bold text-slate-900">Initializing GraphRAG Roadmap with google.gemma-4-31b...</h3>
-          <p className="mt-1 max-w-md mx-auto text-xs text-slate-600 leading-relaxed">
-            Traversing knowledge graph and synthesizing topic-specific learning steps, objectives, and curated resources for <strong>"{goal.title}"</strong>.
+          <h3 className="text-lg font-black text-slate-900">Querying Neo4j GraphRAG & Synthesizing Roadmap with google.gemma-4-31b...</h3>
+          <p className="mt-1.5 max-w-lg mx-auto text-xs font-medium text-slate-600 leading-relaxed">
+            Traversing knowledge graph entities, content units, and source citations for <strong>"{goal.title}"</strong>.
           </p>
+          
+          <div className="mt-5 max-w-md mx-auto space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-bold text-blue-700 bg-white/80 rounded-lg px-3 py-1.5 border border-blue-100 shadow-2xs">
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px] text-blue-600">account_tree</span>
+                1. Vector Embedding & Graph Traversal
+              </span>
+              <span className="text-emerald-600 font-bold">Complete ✓</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-bold text-blue-700 bg-white/80 rounded-lg px-3 py-1.5 border border-blue-100 shadow-2xs">
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px] text-blue-600">menu_book</span>
+                2. Graph Citation & Entity Extraction
+              </span>
+              <span className="text-blue-600 font-bold animate-pulse">Active...</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 bg-white/40 rounded-lg px-3 py-1.5 border border-slate-100">
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                3. Gemma 4 31B Structured Roadmap Synthesis
+              </span>
+              <span>Pending</span>
+            </div>
+          </div>
         </div>
       )}
 
