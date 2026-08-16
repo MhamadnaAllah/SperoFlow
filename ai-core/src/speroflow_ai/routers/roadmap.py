@@ -3,7 +3,8 @@ Roadmap router — graph-grounded learning path generation powered by Gemma 4 31
 
 POST /api/roadmap/prerequisites
   Retrieves real GraphRAG knowledge, concepts, content units, and source citations
-  from the Neo4j knowledge graph, then uses Gemma 4 31B to synthesize a structured
+  from the Neo4j knowledge graph (incorporating roadmap.sh curriculum DAGs and CBT docs),
+  topologically sorts prerequisite sequences, then uses Gemma 4 31B to synthesize a structured
   interactive learning timeline with steps, citations, resources, and subtasks.
 """
 
@@ -35,11 +36,11 @@ router = APIRouter(prefix="/api/roadmap", tags=["Roadmap Graph RAG"])
 
 SYSTEM_PROMPT = """You are SperoFlow's AI Software Architect and Curriculum Designer powering GraphRAG Roadmaps.
 
-Your task is to synthesize a structured, highly specific 5 to 7 step learning roadmap for a requested GOAL using the RETRIEVED GRAPH KNOWLEDGE & CITATIONS provided.
+Your task is to synthesize a structured, highly specific 5 to 7 step learning roadmap for a requested GOAL using the RETRIEVED GRAPH KNOWLEDGE & CITATIONS provided from the roadmap.sh knowledge graph.
 
 === STRICT RULES ===
 1. Every step topic MUST name specific technologies, core APIs, languages, frameworks, or design patterns for the target GOAL.
-2. Do NOT output generic filler or static steps.
+2. Maintain the natural prerequisite sequence: foundational toolchains/concepts first, advancing to architectural mastery, integrations, and capstone production deployment.
 3. For each step, provide:
    - "topic": Clear, highly specific step title (e.g. "1. Modern Rust Syntax, Ownership & Memory Safety", "2. Traits, Generics & Lifetime Annotations")
    - "description": Comprehensive objective detailing exact concepts to master, what to build, and key design patterns.
@@ -77,12 +78,57 @@ def _clean_topic_name(raw: str) -> str:
     return cleaned if len(cleaned) >= 2 else text
 
 
+def _topological_sort(nodes: list[str], edges: list[tuple[str, str]]) -> list[str]:
+    """Kahn's algorithm — guarantees prerequisites appear before dependents."""
+    in_degree: dict[str, int] = {n: 0 for n in nodes}
+    adjacency: dict[str, list[str]] = defaultdict(list)
+
+    for src, tgt in edges:
+        if src in in_degree and tgt in in_degree:
+            adjacency[src].append(tgt)
+            in_degree[tgt] += 1
+
+    queue = deque([n for n in nodes if in_degree[n] == 0])
+    result: list[str] = []
+
+    while queue:
+        node = queue.popleft()
+        result.append(node)
+        for neighbor in adjacency[node]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+
+    if len(result) < len(nodes):
+        result.extend(n for n in nodes if n not in set(result))
+
+    return result
+
+
 # ── GraphRAG Context Retrieval ────────────────────────────────────────────────
 
 async def _retrieve_graphrag_context(driver: AsyncDriver, goal_name: str) -> tuple[list[str], list[str]]:
-    """Retrieve real GraphRAG knowledge, concepts, content units, and source citations from Neo4j."""
+    """
+    Retrieve real GraphRAG knowledge, roadmap.sh topics, relationships, and source citations from Neo4j.
+    Applies Kahn's topological sort over LEADS_TO relationships.
+    """
     topic = _clean_topic_name(goal_name)
     
+    # Query 1: Direct roadmap.sh Topic & Subtopic DAG traversal with LEADS_TO sequence
+    cypher_roadmap = """
+        MATCH (r:Roadmap)
+        WHERE toLower(r.roadmap_name) CONTAINS toLower($topic)
+           OR toLower($topic) CONTAINS toLower(r.roadmap_name)
+        MATCH (r)-[:CONTAINS]->(t:Topic)
+        OPTIONAL MATCH (t)-[rel:LEADS_TO|RELATED_TO]->(next:Topic)
+        RETURN t.label_text AS topic_label,
+               t.url AS topic_url,
+               t.content AS topic_content,
+               next.label_text AS next_label
+        LIMIT 40
+    """
+
+    # Query 2: Multi-label concept & entity search across knowledge graph
     cypher_concepts = """
         MATCH (n)
         WHERE (n:CBTConcept OR n:CBTSection OR n:CBTDocument OR n:ContentUnit OR n:Entity OR n:Topic OR n:Subtopic OR n:Roadmap OR n:Node)
@@ -92,22 +138,35 @@ async def _retrieve_graphrag_context(driver: AsyncDriver, goal_name: str) -> tup
           )
         OPTIONAL MATCH (n)-[:MENTIONS|TEACHES|PRACTICES|ASSERTS|CONTAINS|LEADS_TO|DEPENDS_ON*1..2]-(related)
         RETURN coalesce(n.name, n.title, n.label_text, '') AS concept,
-               coalesce(n.citation, n.source, n.title, '') AS citation,
+               coalesce(n.url, n.citation, n.source, n.title, '') AS citation,
                coalesce(related.name, related.title, related.label_text, '') AS related_title
         LIMIT 30
     """
     
-    cypher_units = """
-        MATCH (unit:ContentUnit)
-        WHERE unit.active = true AND toLower(unit.text) CONTAINS toLower($topic)
-        RETURN unit.text AS text, unit.citation AS citation
-        LIMIT 10
-    """
-    
-    concepts: set[str] = set()
+    nodes: set[str] = set()
+    edges: list[tuple[str, str]] = []
     citations: set[str] = set()
     
     async with driver.session() as session:
+        # 1. Query Roadmap DAG
+        try:
+            res_rm = await session.run(cypher_roadmap, topic=topic)
+            records_rm = await res_rm.data()
+            for r in records_rm:
+                lbl = r.get("topic_label", "").strip()
+                url = r.get("topic_url", "").strip()
+                nxt = r.get("next_label", "").strip()
+                if lbl and len(lbl) > 2:
+                    nodes.add(lbl)
+                    if url and url.startswith("http"):
+                        citations.add(f"{url} - {lbl} Documentation")
+                    if nxt and len(nxt) > 2:
+                        nodes.add(nxt)
+                        edges.append((lbl, nxt))
+        except Exception as err:
+            logger.warning("Roadmap DAG Cypher traversal notice: %s", err)
+
+        # 2. Query Concepts & Content Units
         try:
             res1 = await session.run(cypher_concepts, topic=topic)
             records1 = await res1.data()
@@ -116,36 +175,24 @@ async def _retrieve_graphrag_context(driver: AsyncDriver, goal_name: str) -> tup
                 cit = r.get("citation", "").strip()
                 rel = r.get("related_title", "").strip()
                 if c and len(c) > 2:
-                    concepts.add(c[:300])
+                    nodes.add(c[:300])
                 if rel and len(rel) > 2:
-                    concepts.add(rel[:300])
+                    nodes.add(rel[:300])
                 if cit and len(cit) > 2:
                     citations.add(cit[:300])
         except Exception as err:
             logger.warning("GraphRAG concepts query notice: %s", err)
-            
-        try:
-            res2 = await session.run(cypher_units, topic=topic)
-            records2 = await res2.data()
-            for r in records2:
-                txt = r.get("text", "").strip()
-                cit = r.get("citation", "").strip()
-                if txt:
-                    concepts.add(txt[:400])
-                if cit:
-                    citations.add(cit[:300])
-        except Exception as err:
-            logger.warning("GraphRAG content units query notice: %s", err)
 
-    logger.info("GraphRAG retrieval for '%s': %d concepts, %d citations.", goal_name, len(concepts), len(citations))
-    return list(concepts), list(citations)
+    sorted_topics = _topological_sort(list(nodes), edges) if nodes else []
+    logger.info("GraphRAG retrieval for '%s': %d sorted topics, %d citations.", goal_name, len(sorted_topics), len(citations))
+    return sorted_topics, list(citations)
 
 
 def _build_fallback_timeline(goal_name: str, concepts: list[str], citations: list[str]) -> dict[str, Any]:
     cleaned = _clean_topic_name(goal_name)
     title_case = cleaned.title()
 
-    res_1 = [f"{cit} - {title_case} Source" for cit in citations[:2]] if citations else [
+    res_1 = [f"{cit}" for cit in citations[:2]] if citations else [
         f"https://www.google.com/search?q=official+{urllib.parse.quote_plus(cleaned)}+documentation - Official {title_case} Reference",
         f"https://www.google.com/search?q={urllib.parse.quote_plus(cleaned)}+getting+started - Hands-on {title_case} Guide"
     ]
@@ -243,7 +290,7 @@ async def get_prerequisites(
     driver: AsyncDriver = Depends(get_neo4j),
 ) -> LearningTimeline:
     """
-    Pipeline: Goal → Neo4j GraphRAG Retrieval → Gemma 4 31B Synthesis → LearningTimeline with Step Resources
+    Pipeline: Goal → Neo4j GraphRAG Retrieval (roadmap.sh DAG) → Gemma 4 31B Synthesis → LearningTimeline with Step Resources
     """
     logger.info("GraphRAG Prerequisites request for goal: '%s'", request.goal_name)
     
@@ -257,9 +304,9 @@ async def get_prerequisites(
     # 2. Build Context Prompt
     context_lines = [f"GOAL: {request.goal_name}"]
     if concepts:
-        context_lines.append("RETRIEVED GRAPH CONCEPTS & KNOWLEDGE:\n" + "\n".join(f"- {c}" for c in concepts[:20]))
+        context_lines.append("TOPOLOGICALLY ORDERED GRAPH TOPICS (ROADMAP.SH PREREQUISITES):\n" + "\n".join(f"- {c}" for c in concepts[:20]))
     if citations:
-        context_lines.append("RETRIEVED SOURCE CITATIONS & DOCUMENTS:\n" + "\n".join(f"- {c}" for c in citations[:10]))
+        context_lines.append("RETRIEVED SOURCE CITATIONS & DOCUMENTATION LINKS:\n" + "\n".join(f"- {c}" for c in citations[:10]))
     
     full_context = "\n\n".join(context_lines)
 

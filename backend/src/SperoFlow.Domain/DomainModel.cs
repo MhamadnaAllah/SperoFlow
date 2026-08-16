@@ -548,7 +548,7 @@ public sealed class GoalRoadmapProposal : AuditableEntity
             throw new DomainValidationException("A roadmap proposal requires a proposal, goal, and source version.");
         }
 
-        if (string.IsNullOrWhiteSpace(protectedPayload) || protectedPayload.Length > 48_000)
+        if (string.IsNullOrWhiteSpace(protectedPayload) || protectedPayload.Length > 64_000)
         {
             throw new DomainValidationException("Goal roadmap content is invalid.");
         }
@@ -1528,7 +1528,7 @@ public sealed class AiActionProposal : AuditableEntity
             throw new DomainValidationException("Proposal description is invalid.");
         }
 
-        if (string.IsNullOrWhiteSpace(payload) || payload.Length > 16_000)
+        if (string.IsNullOrWhiteSpace(payload) || payload.Length > 64_000)
         {
             throw new DomainValidationException("Proposal payload is invalid.");
         }

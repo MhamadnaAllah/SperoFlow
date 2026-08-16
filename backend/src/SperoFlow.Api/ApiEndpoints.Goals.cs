@@ -672,11 +672,19 @@ public static partial class ApiEndpoints
             }
 
             var resources = GetStringArray(value, "resources");
+            var subtasks = GetStringArray(value, "subtasks");
+
+            var fullDesc = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+            if (subtasks != null && subtasks.Count > 0)
+            {
+                var tasksText = "\n\nKey Work Items:\n" + string.Join("\n", subtasks.Select(s => $"• {s}"));
+                fullDesc = string.IsNullOrWhiteSpace(fullDesc) ? tasksText.TrimStart() : (fullDesc + tasksText);
+            }
 
             steps.Add(new GoalRoadmapStepPayload(
                 steps.Count + 1_000,
                 title,
-                string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+                fullDesc,
                 estimatedHours,
                 resources));
             if (steps.Count == 20)

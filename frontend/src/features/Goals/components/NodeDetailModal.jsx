@@ -24,12 +24,34 @@ export default function NodeDetailModal({ milestone, goal, onClose, onStateChang
 
   // Extract work items/lines from description
   const rawDesc = milestone?.description || "";
-  // Split description into clean lines excluding "Resources:" section if appended
-  const cleanDesc = rawDesc.split(/Resources:/i)[0].trim();
-  const taskLines = cleanDesc
-    .split("\n")
-    .map((l) => l.trim().replace(/^[-•*]\s*/, ""))
-    .filter((l) => l.length > 0);
+  
+  // Extract overview paragraph (text before Key Work Items or Resources)
+  const overview = rawDesc
+    .split(/Key Work Items:|Resources:|Subtasks:/i)[0]
+    .trim();
+
+  // Extract work items
+  let taskLines = [];
+  if (rawDesc.includes("Key Work Items:")) {
+    const workPart = rawDesc.split(/Key Work Items:/i)[1].split(/Resources:/i)[0];
+    taskLines = workPart
+      .split("\n")
+      .map((l) => l.trim().replace(/^[-•*]\s*/, ""))
+      .filter((l) => l.length > 0);
+  } else {
+    taskLines = overview
+      .split("\n")
+      .map((l) => l.trim().replace(/^[-•*]\s*/, ""))
+      .filter((l) => l.length > 0 && (l.startsWith("•") || l.startsWith("-") || l.length < 150));
+  }
+
+  if (taskLines.length === 0) {
+    taskLines = [
+      `Review core fundamentals for ${milestone.title}`,
+      `Complete hands-on implementation project for ${milestone.title}`,
+      `Verify test cases and code review for ${milestone.title}`,
+    ];
+  }
 
   const initialChecked = {};
   taskLines.forEach((_, idx) => {
@@ -161,7 +183,7 @@ export default function NodeDetailModal({ milestone, goal, onClose, onStateChang
         <div className="mt-6">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Node Overview & Objectives</h3>
           <div className="mt-2 rounded-xl bg-slate-50/70 p-4 text-sm leading-relaxed text-slate-700 border border-slate-100">
-            {cleanDesc || `Master key principles and practical implementations for ${milestone.title}.`}
+            {overview || `Master key principles and practical implementations for ${milestone.title}.`}
           </div>
         </div>
 
