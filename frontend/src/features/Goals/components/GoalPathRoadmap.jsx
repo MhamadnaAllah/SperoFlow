@@ -128,13 +128,32 @@ export default function GoalPathRoadmap({ milestones = [], goal = null, busy = f
                 {node.resources?.length > 0 && (
                   <div className="mt-3 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     {node.resources.slice(0, 2).map((res, rIdx) => {
-                      const urlMatch = String(res).match(/(https?:\/\/[^\s]+)/);
-                      const url = urlMatch ? urlMatch[1] : `https://www.google.com/search?q=${encodeURIComponent(res)}`;
-                      const label = urlMatch ? String(res).replace(urlMatch[1], "").replace(/^[\s\-–—:]+/, "").trim() || urlMatch[1] : res;
+                      const text = String(res).trim();
+                      const atMatch = text.match(/\[@([a-zA-Z0-9_\-]+)@([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/);
+                      const bracketMatch = text.match(/^\[([a-zA-Z0-9_\-\s]+)\]\s*(.*?)(?:[\s\-–—:]+)(https?:\/\/[^\s]+)$/);
+                      const mdMatch = text.match(/\[([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/);
+                      const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
+
+                      let url = "#";
+                      let label = text;
+                      if (atMatch) {
+                        label = atMatch[2].trim();
+                        url = atMatch[3].trim();
+                      } else if (bracketMatch) {
+                        label = bracketMatch[2].trim() || bracketMatch[1].trim();
+                        url = bracketMatch[3].trim();
+                      } else if (mdMatch) {
+                        label = mdMatch[1].trim();
+                        url = mdMatch[2].trim();
+                      } else if (urlMatch) {
+                        url = urlMatch[1];
+                        label = text.replace(url, "").replace(/^[\s\-–—:\[\]\(\)]+/, "").trim() || url;
+                      }
+
                       return (
                         <a
                           key={rIdx}
-                          href={url}
+                          href={url !== "#" ? url : undefined}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 rounded-md bg-blue-50/80 border border-blue-200 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-600 hover:text-white transition"

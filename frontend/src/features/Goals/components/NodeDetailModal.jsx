@@ -4,16 +4,99 @@ import { useState } from "react";
 import { goalsApi, tasksApi } from "@/lib/api/client";
 
 function parseResourceLink(raw) {
-  if (!raw) return { url: "#", label: "" };
+  if (!raw) return { url: "#", label: "Documentation", type: "Docs" };
   const text = String(raw).trim();
+
+  // Pattern 1: [@type@Title](url)
+  const atMatch = text.match(/\[@([a-zA-Z0-9_\-]+)@([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/);
+  if (atMatch) {
+    return {
+      type: atMatch[1].charAt(0).toUpperCase() + atMatch[1].slice(1).toLowerCase(),
+      label: atMatch[2].trim(),
+      url: atMatch[3].trim(),
+    };
+  }
+
+  // Pattern 2: [Title](url)
+  const mdMatch = text.match(/\[([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/);
+  if (mdMatch) {
+    return {
+      type: "Article",
+      label: mdMatch[1].trim(),
+      url: mdMatch[2].trim(),
+    };
+  }
+
+  // Pattern 3: [Type] Title - url or [Type] url
+  const bracketMatch = text.match(/^\[([a-zA-Z0-9_\-\s]+)\]\s*(.*?)(?:[\s\-–—:]+)(https?:\/\/[^\s]+)$/);
+  if (bracketMatch) {
+    return {
+      type: bracketMatch[1].trim(),
+      label: bracketMatch[2].trim() || bracketMatch[1].trim(),
+      url: bracketMatch[3].trim(),
+    };
+  }
+
+  // Pattern 4: url found with label
   const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
   if (urlMatch) {
     const url = urlMatch[1];
-    const label = text.replace(url, "").replace(/^[\s\-–—:]+/, "").trim() || url;
-    return { url, label };
+    let label = text.replace(url, "").replace(/^[\s\-–—:\[\]\(\)]+/, "").replace(/[\s\-–—:\[\]\(\)]+$/, "").trim() || url;
+    let type = "Docs";
+    if (/youtube\.com|youtu\.be/i.test(url) || /video/i.test(label) || /video/i.test(text)) type = "Video";
+    else if (/course|udemy|coursera|edx|educative/i.test(url) || /course/i.test(label) || /course/i.test(text)) type = "Course";
+    else if (/feed|blog|medium|dev\.to|daily\.dev/i.test(url) || /feed/i.test(label)) type = "Feed";
+    else if (/article|tutorial|guide/i.test(label) || /article/i.test(text)) type = "Article";
+    else if (/github\.com/i.test(url)) type = "Repo";
+    
+    return { url, label, type };
   }
-  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(text)}`;
-  return { url: searchUrl, label: text };
+
+  return { url: "#", label: text, type: "Resource" };
+}
+
+function getResourceTypeBadge(type) {
+  const t = String(type || "Docs").toLowerCase();
+  if (t.includes("article") || t.includes("guide") || t.includes("tutorial")) {
+    return {
+      bg: "bg-amber-100 text-amber-900 border-amber-300",
+      icon: "menu_book",
+      label: "Article",
+    };
+  }
+  if (t.includes("video") || t.includes("youtube")) {
+    return {
+      bg: "bg-purple-100 text-purple-900 border-purple-300",
+      icon: "smart_display",
+      label: "Video",
+    };
+  }
+  if (t.includes("course")) {
+    return {
+      bg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      icon: "school",
+      label: "Course",
+    };
+  }
+  if (t.includes("feed") || t.includes("blog") || t.includes("post")) {
+    return {
+      bg: "bg-pink-100 text-pink-900 border-pink-300",
+      icon: "rss_feed",
+      label: "Feed",
+    };
+  }
+  if (t.includes("repo") || t.includes("github")) {
+    return {
+      bg: "bg-slate-100 text-slate-900 border-slate-300",
+      icon: "code",
+      label: "Repo",
+    };
+  }
+  return {
+    bg: "bg-blue-100 text-blue-900 border-blue-300",
+    icon: "description",
+    label: "Docs",
+  };
 }
 
 export default function NodeDetailModal({ milestone, goal, onClose, onStateChange, onTaskAdded }) {
@@ -187,36 +270,44 @@ export default function NodeDetailModal({ milestone, goal, onClose, onStateChang
           </div>
         </div>
 
-        {/* Clickable Resource Hyperlinks */}
+        {/* Direct Clickable Resource Hyperlinks with Type Badges */}
         <div className="mt-6">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Clickable Learning Resources & Documentation</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Curated Learning Resources & Documentation</h3>
+          <div className="mt-3 flex flex-col gap-2">
             {resources.length > 0 ? (
               resources.map((res, rIdx) => {
                 const link = parseResourceLink(res);
+                const badge = getResourceTypeBadge(link.type);
+                const hasUrl = link.url && link.url !== "#";
                 return (
                   <a
                     key={rIdx}
-                    href={link.url}
+                    href={hasUrl ? link.url : undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-600 hover:text-white transition shadow-2xs group"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 hover:bg-blue-50/30 transition shadow-2xs group"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-blue-600 group-hover:text-white">open_in_new</span>
-                    <span>{link.label}</span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider border shrink-0 ${badge.bg}`}>
+                        <span className="material-symbols-outlined text-[13px]">{badge.icon}</span>
+                        <span>{badge.label}</span>
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800 group-hover:text-blue-700 truncate">
+                        {link.label}
+                      </span>
+                    </div>
+                    {hasUrl && (
+                      <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-blue-600 shrink-0">
+                        open_in_new
+                      </span>
+                    )}
                   </a>
                 );
               })
             ) : (
-              <a
-                href={`https://www.google.com/search?q=${encodeURIComponent(milestone.title + " documentation tutorial")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-600 hover:text-white transition"
-              >
-                <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                <span>Search Documentation for {milestone.title}</span>
-              </a>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-xs text-slate-500 italic">
+                No external resource links attached for this node.
+              </div>
             )}
           </div>
         </div>
