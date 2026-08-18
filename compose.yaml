@@ -317,6 +317,8 @@ services:
     networks:
       - private
       - knowledge_read_bridge
+    volumes:
+      - ./knowledge-base:/knowledge-base:ro
     read_only: true
     tmpfs:
       - /tmp

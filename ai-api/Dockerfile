@@ -20,8 +20,9 @@ COPY ai-core/src /tmp/ai-core/src
 RUN pip install --no-cache-dir /tmp/ai-core
 COPY ai-api/api_main.py /app/api_main.py
 COPY infrastructure/docker/entrypoint-ai.sh /entrypoint.sh
+COPY knowledge-base /knowledge-base
 RUN mkdir -p /app/models/roberta \
-    && chmod 0555 /entrypoint.sh && chown -R app:app /app
+    && chmod 0555 /entrypoint.sh && chown -R app:app /app && chown -R app:app /knowledge-base
 
 USER app
 EXPOSE 8000
