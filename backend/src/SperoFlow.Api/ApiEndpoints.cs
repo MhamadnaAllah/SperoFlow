@@ -146,18 +146,12 @@ public static partial class ApiEndpoints
                     var roles = await userManager.GetRolesAsync(user);
                     return Results.Ok(new AuthenticatedUserResponse(user.Id, user.Email ?? string.Empty, user.DisplayName, user.EmailConfirmed, roles.ToArray()));
                 }
-                catch
+                catch (DbUpdateException)
                 {
                     await transaction.RollbackAsync(CancellationToken.None);
-                    throw;
+                    return Results.Problem(title: "Knowledge role administration is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
                 }
             });
-            }
-            catch (DbUpdateException)
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-                return Results.Problem(title: "Knowledge role administration is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
         });
     }
     private static async Task<IResult> RegisterAsync(

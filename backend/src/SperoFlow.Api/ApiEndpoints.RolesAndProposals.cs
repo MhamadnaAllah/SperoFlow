@@ -614,6 +614,7 @@ public static partial class ApiEndpoints
                 await transaction.RollbackAsync(CancellationToken.None);
                 return Results.Conflict(new { error = "The suggestion could not be applied. Refresh and retry." });
             }
+            });
         });
 
         proposals.MapPost("/{id:guid}/cancel", async (
@@ -738,9 +739,9 @@ public static partial class ApiEndpoints
                 await transaction.RollbackAsync(CancellationToken.None);
                 return Results.Conflict(new { error = "The suggestion could not be cancelled. Refresh and retry." });
             }
+            });
         });
-    });
-}
+    }
 
     private static async Task<bool> EnsureCoreLifeRolesAsync(
         AppDbContext db,
