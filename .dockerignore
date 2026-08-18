@@ -25,5 +25,3 @@ ai-core/**/*.pyc
 infrastructure/secrets/*
 !infrastructure/secrets/.gitignore
 !infrastructure/secrets/README.md
-
-knowledge-base
