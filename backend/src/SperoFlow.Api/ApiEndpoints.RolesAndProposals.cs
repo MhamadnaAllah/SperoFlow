@@ -254,9 +254,12 @@ public static partial class ApiEndpoints
                 return Results.Conflict(new { error = "Only a pending suggestion can be approved." });
             }
 
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
+            var strategy = db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
             {
+                await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+                try
+                {
                 switch (proposal.Kind)
                 {
                     case AiProposalKind.CreateTask:
@@ -639,23 +642,26 @@ public static partial class ApiEndpoints
                 return Results.Conflict(new { error = "Only a pending suggestion can be cancelled." });
             }
 
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
+            var strategy = db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
             {
-                if (proposal.Kind == AiProposalKind.ApplyJournalInsight)
+                await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+                try
                 {
-                    var payload = JsonSerializer.Deserialize<JournalInsightProposalPayload>(proposal.Payload, JsonOptions);
-                    if (payload is null
-                        || payload.InsightId == Guid.Empty
-                        || payload.JournalEntryId == Guid.Empty
-                        || payload.SourceConcurrencyToken == Guid.Empty
-                        || !string.Equals(
-                            proposal.SourceKey,
-                            JournalInsightProposalSourceKey(payload.JournalEntryId, payload.SourceConcurrencyToken),
-                            StringComparison.Ordinal))
+                    if (proposal.Kind == AiProposalKind.ApplyJournalInsight)
                     {
-                        return Results.Conflict(new { error = "This journal reflection is no longer valid." });
-                    }
+                        var payload = JsonSerializer.Deserialize<JournalInsightProposalPayload>(proposal.Payload, JsonOptions);
+                        if (payload is null
+                            || payload.InsightId == Guid.Empty
+                            || payload.JournalEntryId == Guid.Empty
+                            || payload.SourceConcurrencyToken == Guid.Empty
+                            || !string.Equals(
+                                proposal.SourceKey,
+                                JournalInsightProposalSourceKey(payload.JournalEntryId, payload.SourceConcurrencyToken),
+                                StringComparison.Ordinal))
+                        {
+                            return Results.Conflict(new { error = "This journal reflection is no longer valid." });
+                        }
 
                     var insight = await db.JournalInsights.SingleOrDefaultAsync(
                         value => value.Id == payload.InsightId
@@ -733,7 +739,8 @@ public static partial class ApiEndpoints
                 return Results.Conflict(new { error = "The suggestion could not be cancelled. Refresh and retry." });
             }
         });
-    }
+    });
+}
 
     private static async Task<bool> EnsureCoreLifeRolesAsync(
         AppDbContext db,

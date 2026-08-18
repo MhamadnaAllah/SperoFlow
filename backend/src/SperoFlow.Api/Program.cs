@@ -119,24 +119,27 @@ app.Use(async (context, next) =>
     }
 
     var db = context.RequestServices.GetRequiredService<AppDbContext>();
-    await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, context.RequestAborted);
-    try
+    await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
     {
-        await next(context);
-        if (context.Response.StatusCode is >= StatusCodes.Status200OK and < StatusCodes.Status400BadRequest)
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, context.RequestAborted);
+        try
         {
-            await transaction.CommitAsync(context.RequestAborted);
+            await next(context);
+            if (context.Response.StatusCode is >= StatusCodes.Status200OK and < StatusCodes.Status400BadRequest)
+            {
+                await transaction.CommitAsync(context.RequestAborted);
+            }
+            else
+            {
+                await transaction.RollbackAsync(context.RequestAborted);
+            }
         }
-        else
+        catch
         {
-            await transaction.RollbackAsync(context.RequestAborted);
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
         }
-    }
-    catch
-    {
-        await transaction.RollbackAsync(CancellationToken.None);
-        throw;
-    }
+    });
 });
 
 if (app.Environment.IsDevelopment())

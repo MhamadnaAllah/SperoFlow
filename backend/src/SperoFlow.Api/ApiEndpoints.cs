@@ -104,45 +104,54 @@ public static partial class ApiEndpoints
                 return Results.NotFound();
             }
 
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-            try
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
-                if (!await roleManager.RoleExistsAsync(role))
+                await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+                try
                 {
-                    var createRole = await roleManager.CreateAsync(new IdentityRole<Guid>(role) { Id = Guid.CreateVersion7() });
-                    if (!createRole.Succeeded)
+                    if (!await roleManager.RoleExistsAsync(role))
                     {
-                        await transaction.RollbackAsync(cancellationToken);
-                        return Results.Problem(title: "Knowledge role administration is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+                        var createRole = await roleManager.CreateAsync(new IdentityRole<Guid>(role) { Id = Guid.CreateVersion7() });
+                        if (!createRole.Succeeded)
+                        {
+                            await transaction.RollbackAsync(cancellationToken);
+                            return Results.Problem(title: "Knowledge role administration is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+                        }
                     }
-                }
 
-                var hasRole = await userManager.IsInRoleAsync(user, role);
-                if (request.Enabled && !hasRole)
+                    var hasRole = await userManager.IsInRoleAsync(user, role);
+                    if (request.Enabled && !hasRole)
+                    {
+                        var addRole = await userManager.AddToRoleAsync(user, role);
+                        if (!addRole.Succeeded)
+                        {
+                            await transaction.RollbackAsync(cancellationToken);
+                            return Results.ValidationProblem(addRole.Errors.ToDictionary(error => error.Code, error => new[] { error.Description }));
+                        }
+                    }
+                    else if (!request.Enabled && hasRole)
+                    {
+                        var removeRole = await userManager.RemoveFromRoleAsync(user, role);
+                        if (!removeRole.Succeeded)
+                        {
+                            await transaction.RollbackAsync(cancellationToken);
+                            return Results.ValidationProblem(removeRole.Errors.ToDictionary(error => error.Code, error => new[] { error.Description }));
+                        }
+                    }
+
+                    AddAudit(db, currentUser.UserId, "identity", request.Enabled ? "knowledge_role_granted" : "knowledge_role_revoked", "user", user.Id);
+                    await db.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+
+                    var roles = await userManager.GetRolesAsync(user);
+                    return Results.Ok(new AuthenticatedUserResponse(user.Id, user.Email ?? string.Empty, user.DisplayName, user.EmailConfirmed, roles.ToArray()));
+                }
+                catch
                 {
-                    var addRole = await userManager.AddToRoleAsync(user, role);
-                    if (!addRole.Succeeded)
-                    {
-                        await transaction.RollbackAsync(cancellationToken);
-                        return Results.ValidationProblem(addRole.Errors.ToDictionary(error => error.Code, error => new[] { error.Description }));
-                    }
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    throw;
                 }
-                else if (!request.Enabled && hasRole)
-                {
-                    var removeRole = await userManager.RemoveFromRoleAsync(user, role);
-                    if (!removeRole.Succeeded)
-                    {
-                        await transaction.RollbackAsync(cancellationToken);
-                        return Results.ValidationProblem(removeRole.Errors.ToDictionary(error => error.Code, error => new[] { error.Description }));
-                    }
-                }
-
-                AddAudit(db, currentUser.UserId, "identity", request.Enabled ? "knowledge_role_granted" : "knowledge_role_revoked", "user", user.Id);
-                await db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-
-                var roles = await userManager.GetRolesAsync(user);
-                return Results.Ok(new AuthenticatedUserResponse(user.Id, user.Email ?? string.Empty, user.DisplayName, user.EmailConfirmed, roles.ToArray()));
+            });
             }
             catch (DbUpdateException)
             {
