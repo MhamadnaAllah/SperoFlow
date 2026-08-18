@@ -209,12 +209,17 @@ public static partial class ApiEndpoints
         var proposals = api.MapGroup("/ai/proposals");
 
         proposals.MapGet("", async (
-            AiProposalState? state,
+            string? state,
             AppDbContext db,
             ICurrentUser currentUser,
             CancellationToken cancellationToken) =>
         {
-            var selectedState = state ?? AiProposalState.Pending;
+            var selectedState = AiProposalState.Pending;
+            if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<AiProposalState>(state, ignoreCase: true, out var parsedState))
+            {
+                selectedState = parsedState;
+            }
+
             var values = await db.AiActionProposals.AsNoTracking()
                 .Where(proposal => proposal.OwnerId == currentUser.UserId && proposal.State == selectedState)
                 .OrderByDescending(proposal => proposal.CreatedAt)

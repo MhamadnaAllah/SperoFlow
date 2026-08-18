@@ -141,12 +141,17 @@ export const authApi = {
     return apiRequest("/auth/me");
   },
   async login(input) {
+    csrfToken = null;
     const result = await apiRequest("/auth/login", { method: "POST", body: input });
+    csrfToken = null;
     emitAuthChange();
     return result;
   },
   async register(input) {
-    return apiRequest("/auth/register", { method: "POST", body: input });
+    csrfToken = null;
+    const result = await apiRequest("/auth/register", { method: "POST", body: input });
+    csrfToken = null;
+    return result;
   },
   async logout() {
     const result = await apiRequest("/auth/logout", { method: "POST" });
